@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SleepySloth Miner</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #121212;
+            color: white;
+        }
+
+        .container {
+            max-width: 400px;
+            margin: auto;
+            padding: 20px;
+            border-radius: 10px;
+            background-color: #1f1f1f;
+            box-shadow: 0px 0px 10px rgba(255, 255, 255, 0.2);
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #00c853;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button:disabled {
+            background-color: gray;
+            cursor: not-allowed;
+        }
+
+        #stopButton {
+            background-color: #d32f2f;
+        }
+
+        p {
+            margin-top: 10px;
+        }
+
+        /* Task Section */
+        #taskSection {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            background-color: #2a2a2a;
+            box-shadow: 0px 0px 10px rgba(255, 255, 255, 0.1);
+        }
+
+        .task {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            background: #1f1f1f;
+        }
+
+        .task p {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .task button {
+            margin: 5px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐨 SleepySloth Miner</h1>
+        <p id="balance">Balance: 0 Points</p>
+        <p id="rate">Mining Rate: 1 Point / minute</p>        
+        <button id="mineButton">⛏️ Start Mining</button>
+        <button id="stopButton" disabled>🛑 Stop Mining</button>
+        <p id="status">Mining paused</p>
+        <p id="countdown"></p>
+
+        <!-- Task Section -->
+        <div id="taskSection">
+            <h2>🎯 Complete Tasks & Earn Rewards</h2>
+
+            <div class="task">
+                <p>🐦 Follow us on Twitter</p>
+                <button id="followTwitter">Follow</button>
+                <button id="verifyTwitter" disabled>✅ Verify & Get 100 Points</button>
+            </div>
+
+            <div class="task">
+                <p>🔁 Repost (Retweet) Our Tweet</p>
+                <button id="retweetTweet">Repost</button>
+                <button id="verifyRetweet" disabled>✅ Verify & Get 50 Points</button>
+            </div>
+
+            <div class="task">
+                <p>💬 Join our Telegram</p>
+                <button id="joinTelegram">Join</button>
+                <button id="verifyTelegram" disabled>✅ Verify & Get 150 Points</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let balance = localStorage.getItem("balance") ? parseInt(localStorage.getItem("balance")) : 0;
+        let mining = localStorage.getItem("mining") === "true";
+        let rate = 1;
+        let miningStartTime = localStorage.getItem("miningStartTime") ? parseInt(localStorage.getItem("miningStartTime")) : null;
+        let miningInterval;
+        let countdownInterval;
+
+        function checkMiningStatus() {
+            if (miningStartTime && !isNaN(miningStartTime)) {
+                let elapsed = (Date.now() - miningStartTime) / (1000 * 60 * 60);
+                if (elapsed < 24) {
+                    mining = true;
+                    startMining();
+                } else {
+                    stopMining();
+                }
+            }
+            updateUI();
+        }
+
+        document.getElementById("mineButton").addEventListener("click", function () {
+            if (!mining) {
+                miningStartTime = Date.now();
+                localStorage.setItem("miningStartTime", miningStartTime.toString());
+                localStorage.setItem("mining", "true");
+                mining = true;
+                startMining();
+            }
+        });
+
+        document.getElementById("stopButton").addEventListener("click", function () {
+            if (mining) {
+                stopMining();
+            }
+        });
+
+        function startMining() {
+            if (miningInterval) clearInterval(miningInterval);
+            if (countdownInterval) clearInterval(countdownInterval);
+
+            mining = true;
+            document.getElementById("mineButton").disabled = true;
+            document.getElementById("stopButton").disabled = false;
+
+            miningInterval = setInterval(() => {
+                let elapsed = (Date.now() - miningStartTime) / (1000 * 60 * 60);
+                if (elapsed >= 24) {
+                    stopMining();
+                    return;
+                }
+
+                balance += rate;
+                localStorage.setItem("balance", balance);
+                updateUI();
+            }, 60000);
+
+            startCountdown();
+            updateUI();
+        }
+
+        function stopMining() {
+            mining = false;
+            localStorage.setItem("mining", "false");
+            miningStartTime = null;
+            localStorage.removeItem("miningStartTime");
+            clearInterval(miningInterval);
+            clearInterval(countdownInterval);
+            document.getElementById("mineButton").disabled = false;
+            document.getElementById("stopButton").disabled = true;
+            updateUI();
+        }
+
+        function startCountdown() {
+            countdownInterval = setInterval(() => {
+                let remainingTime = 24 - (Date.now() - miningStartTime) / (1000 * 60 * 60);
+                if (remainingTime <= 0) {
+                    document.getElementById("countdown").innerText = "Mining session complete! Restart to mine again.";
+                    clearInterval(countdownInterval);
+                } else {
+                    let hours = Math.floor(remainingTime);
+                    let minutes = Math.floor((remainingTime - hours) * 60);
+                    document.getElementById("countdown").innerText = `⏳ Time left: ${hours}h ${minutes}m`;
+                }
+            }, 1000);
+        }
+
+        function updateUI() {
+            document.getElementById("balance").innerText = `Balance: ${balance} Points`;
+            document.getElementById("rate").innerText = `Mining Rate: ${rate} Points / minute`;
+            document.getElementById("status").innerText = mining
+                ? `⏳ Mining active...`
+                : "⛏️ Mining paused. Press Start to begin.";
+        }
+
+        checkMiningStatus();
+
+        // Task Handling
+        function completeTask(task, points) {
+            if (!localStorage.getItem(task)) {
+                balance += points;
+                localStorage.setItem("balance", balance);
+                localStorage.setItem(task, "true");
+                updateUI();
+                alert(`✅ Task Completed! You received ${points} Points.`);
+            }
+        }
+
+        document.getElementById("followTwitter").addEventListener("click", function () {
+            window.open("https://twitter.com/Slot74246Sleepy", "_blank");
+            document.getElementById("verifyTwitter").disabled = false;
+        });
+
+        document.getElementById("verifyTwitter").addEventListener("click", function () {
+            completeTask("twitterFollowed", 100);
+            this.disabled = true;
+        });
+
+        document.getElementById("retweetTweet").addEventListener("click", function () {
+            window.open("https://twitter.com/YOUR_TWITTER_HANDLE/status/YOUR_TWEET_ID", "_blank");
+            document.getElementById("verifyRetweet").disabled = false;
+        });
+
+        document.getElementById("verifyRetweet").addEventListener("click", function () {
+            completeTask("tweetRetweeted", 50);
+            this.disabled = true;
+        });
+
+    </script>
+</body>
+</html>
