@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SleepySloth Miner</title>
+
+  <!-- Firebase v9 Compat Mode -->
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
+
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; background-color: #121212; color: white; }
+    .container { max-width: 400px; margin: auto; padding: 20px; background-color: #1f1f1f; border-radius: 10px; }
+    button { padding: 10px 15px; background-color: #00c853; color: white; border-radius: 5px; cursor: pointer; }
+    button:disabled { background-color: gray; cursor: not-allowed; }
+    #stopButton { background-color: #d32f2f; }
+    #taskSection {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            background-color: #2a2a2a;
+            box-shadow: 0px 0px 10px rgba(255, 255, 255, 0.1);
+    }
+    .task { margin-bottom: 15px; padding: 10px; border-radius: 8px; background: #1f1f1f; }
+    .task p { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+    .task button { margin: 5px; font-size: 14px; }
+    #submitSuggestion{
+      margin-top: -80px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🐨 SleepySloth Miner</h1>
+    <button id="loginButton">🔑 Login with Google</button>
+    <p id="user">Not logged in</p>
+
+    <h2>💰 Wallet: <span id="walletBalance">0</span> Coins</h2>
+    <h3>🏆 Points: <span id="pointsBalance">0</span> Points</h3>
+
+    <button id="mineButton">⛏️ Start Mining</button>
+    <button id="stopButton" disabled>🛑 Stop Mining</button>
+
+    <p id="status">Mining paused</p>
+    <p id="countdown"></p>
+     
+    <!-- Task Section -->
+    <div id="taskSection">
+        <h2>🎯 Complete Tasks & Earn Rewards</h2>
+
+        <div class="task">
+            <p>🐦 Follow us on Twitter</p>
+            <a href="https://twitter.com/SleepySlothMiner" target="_blank">
+                <button>Follow</button>
+            </a>
+            <button id="verifyTwitter" disabled>✅ Verify & Get 100 Points</button>
+        </div>
+
+        <div class="task">
+            <p>🔁 Repost (Retweet) Our Tweet</p>
+            <a href="https://twitter.com/SleepySlothMiner/status/1234567890" target="_blank">
+                <button>Repost</button>
+            </a>
+            <button id="verifyRetweet" disabled>✅ Verify & Get 50 Points</button>
+        </div>
+
+        <div class="task">
+            <p>💬 Join our Telegram</p>
+            <a href="https://t.me/SleepySlothMinerCommunity" target="_blank">
+                <button>Join</button>
+            </a>
+            <button id="verifyTelegram" disabled>✅ Verify & Get 150 Points</button>
+        </div>
+    </div>
+    <!-- Like Button -->
+<p>❤️ Likes: <span id="likeCount">0</span></p>
+<button id="likeButton">👍 Like</button>
+
+<!-- Suggestion Form -->
+<h3>💡 Suggest an Improvement</h3>
+<textarea id="suggestionText" placeholder="Write your suggestion..." rows="3"></textarea>
+<button  id="submitSuggestion">📩 Submit</button>
+<p id="suggestionStatus"></p>
+
+  </div>
+<script>
+ const firebaseConfig = {
+    apiKey: "AIzaSyBbIeF_VtKI6z60oZmnn0TgKjPx8kv61kQ",
+    authDomain: "sleepyslothminer-73351.firebaseapp.com",
+    projectId: "sleepyslothminer-73351",
+    storageBucket: "sleepyslothminer-73351.firebasestorage.app",
+    messagingSenderId: "315791075690",
+    appId: "1:315791075690:web:dd5563deef281397999d13"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+let userId = null;
+let points = 0;
+let mining = false;
+let miningStartTime = null;
+let miningInterval;
+
+// Load user data from Firebase when logged in
+function login() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+
+    auth.signInWithPopup(provider)
+        .then((result) => {
+            userId = result.user.uid;
+            document.getElementById("user").innerText = `Logged in as: ${result.user.displayName}`;
+
+            // Fetch user's mining data from Firebase
+            db.ref("users/" + userId).once("value").then((snapshot) => {
+                if (snapshot.exists()) {
+                    let userData = snapshot.val();
+                    points = userData.points || 0;
+                    mining = userData.miningActive || false;
+                    miningStartTime = userData.miningStartTime || null;
+                    document.getElementById("pointsBalance").innerText = points;
+                    document.getElementById("walletBalance").innerText = userData.wallet || 0;
+
+                    if (mining) {
+                        startMining(); // Resume mining if active
+                    }
+                } else {
+                    db.ref("users/" + userId).set({ points: 0, wallet: 0, miningActive: false });
+                }
+            });
+        })
+        .catch((error) => {
+            console.error("❌ Google Sign-In Error:", error.message);
+            alert("Google Sign-In Failed! " + error.message);
+        });
+}
+
+// Start mining and update Firebase
+function startMining() {
+    if (!userId) {
+        alert("Please log in first!");
+        return;
+    }
+
+    if (miningInterval) clearInterval(miningInterval);
+
+    mining = true;
+    miningStartTime = Date.now();
+    localStorage.setItem("mining", "true");
+    localStorage.setItem("miningStartTime", miningStartTime.toString());
+
+    document.getElementById("mineButton").disabled = true;
+    document.getElementById("stopButton").disabled = false;
+    document.getElementById("status").innerText = "⏳ Mining active...";
+
+    db.ref("users/" + userId).update({
+        miningActive: true,
+        miningStartTime: miningStartTime
+    });
+
+    miningInterval = setInterval(() => {
+        points += 1;
+        document.getElementById("pointsBalance").innerText = points;
+        db.ref("users/" + userId + "/points").set(points); // Update Firebase
+        updateCountdown();
+    }, 60000); // Increase points every 1 min
+
+    updateCountdown(); // Update countdown immediately
+}
+
+// Stop mining and transfer points to wallet
+function stopMining() {
+    if (!userId) return;
+
+    clearInterval(miningInterval);
+    mining = false;
+    localStorage.setItem("mining", "false");
+
+    document.getElementById("mineButton").disabled = false;
+    document.getElementById("stopButton").disabled = true;
+    document.getElementById("status").innerText = "⛏️ Mining paused. Press Start to begin.";
+
+    db.ref("users/" + userId).once("value").then((snapshot) => {
+        let userData = snapshot.val();
+        let minedPoints = userData.points || 0;
+        let newWalletBalance = (userData.wallet || 0) + minedPoints;
+
+        db.ref("users/" + userId).update({
+            wallet: newWalletBalance,
+            points: 0, // Reset mined points
+            miningActive: false
+        }).then(() => {
+            document.getElementById("walletBalance").innerText = newWalletBalance;
+            document.getElementById("pointsBalance").innerText = "0"; // Reset UI
+            alert(`✅ Mining session completed! ${minedPoints} points moved to wallet.`);
+        }).catch((error) => {
+            console.error("🔥 Error updating wallet:", error);
+        });
+    });
+}
+
+// Auto-stop mining after 24 hours and transfer points
+function updateCountdown() {
+    if (!miningStartTime) {
+        document.getElementById("countdown").innerHTML = "";
+        return;
+    }
+
+    let elapsedHours = (Date.now() - miningStartTime) / (1000 * 60 * 60);
+    let remainingTime = 24 - elapsedHours;
+
+    if (remainingTime <= 0) {
+        stopMining(); // 🔥 Auto-stop mining & move coins to wallet
+        document.getElementById("countdown").innerHTML = "⏳ Mining session complete!<br>Restart to mine again.";
+        return;
+    }
+
+    let hours = Math.floor(remainingTime);
+    let minutes = Math.floor((remainingTime - hours) * 60);
+
+    document.getElementById("countdown").innerHTML = `⏳ Time left: ${hours}h ${minutes}m`;
+}
+
+// Run countdown update every second
+setInterval(updateCountdown, 1000);
+
+// Auto restart mining on page reload if active
+window.onload = function () {
+    if (mining && miningStartTime) {
+        startMining();
+    }
+};
+
+// Task System (Twitter & Telegram)
+function completeTask(task, reward) {
+    if (!localStorage.getItem(task)) {
+        points += reward;
+        localStorage.setItem("points", points);
+        localStorage.setItem(task, "true");
+        document.getElementById("pointsBalance").innerText = points;
+        alert(`✅ Task Completed! You received ${reward} Points.`);
+    }
+}
+
+// Event Listeners
+document.getElementById("loginButton").addEventListener("click", login);
+document.getElementById("mineButton").addEventListener("click", startMining);
+document.getElementById("stopButton").addEventListener("click", stopMining);
+
+document.getElementById("verifyTwitter").addEventListener("click", function () {
+    completeTask("twitterFollowed", 100);
+    this.disabled = true;
+});
+
+document.getElementById("verifyRetweet").addEventListener("click", function () {
+    completeTask("tweetRetweeted", 50);
+    this.disabled = true;
+});
+
+document.getElementById("verifyTelegram").addEventListener("click", function () {
+    completeTask("telegramJoined", 150);
+    this.disabled = true;
+});
+// Reference Firebase Database
+// Load & Display Total Likes from Firebase
+const likesRef = db.ref("likes");
+const userLikesRef = db.ref("userLikes");
+
+// Load Total Likes from Firebase
+likesRef.once("value").then((snapshot) => {
+    document.getElementById("likeCount").innerText = snapshot.val() || 0;
+});
+
+// Check if user already liked
+function checkIfLiked() {
+    if (!userId) return;
+
+    userLikesRef.child(userId).once("value").then((snapshot) => {
+        if (snapshot.exists()) {
+            document.getElementById("likeButton").disabled = true; // Disable button if already liked
+        }
+    });
+}
+
+// Like Button Click Event
+document.getElementById("likeButton").addEventListener("click", function () {
+    if (!userId) {
+        alert("Please log in to like!");
+        return;
+    }
+
+    userLikesRef.child(userId).set(true); // Mark user as liked
+
+    likesRef.transaction((currentLikes) => {
+        return (currentLikes || 0) + 1;
+    });
+
+    // Update UI & disable button
+    let currentLikes = parseInt(document.getElementById("likeCount").innerText);
+    document.getElementById("likeCount").innerText = currentLikes + 1;
+    document.getElementById("likeButton").disabled = true;
+});
+
+// Check if user liked when logging in
+auth.onAuthStateChanged((user) => {
+    if (user) {
+        userId = user.uid;
+        checkIfLiked();
+    }
+});
+
+// Handle Suggestion Submission
+// Handle Suggestion Submission
+document.getElementById("submitSuggestion").addEventListener("click", function () {
+    if (!userId) {
+        alert("Please log in to submit a suggestion!");
+        return;
+    }
+
+    const suggestionText = document.getElementById("suggestionText").value.trim();
+    
+    if (suggestionText === "") {
+        document.getElementById("suggestionStatus").innerText = "⚠️ Please enter a suggestion.";
+        return;
+    }
+
+    const suggestionData = {
+        userId: userId,
+        suggestion: suggestionText,
+        timestamp: Date.now()
+    };
+
+    db.ref("suggestions").push(suggestionData)
+        .then(() => {
+            document.getElementById("suggestionStatus").innerText = "✅ Suggestion submitted!";
+            document.getElementById("suggestionText").value = ""; // Clear input
+        })
+        .catch((error) => {
+            document.getElementById("suggestionStatus").innerText = "❌ Error submitting suggestion.";
+            console.error("🔥 Firebase Error:", error);
+        });
+});
+
+
+
+</script>
+</body>
+</html>
