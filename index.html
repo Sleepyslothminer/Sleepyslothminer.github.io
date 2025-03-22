@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SleepySloth Miner</title>
+
+  <!-- Firebase v9 Compat Mode -->
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
+
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; background-color: #121212; color: white; }
+    .container { max-width: 400px; margin: auto; padding: 20px; background-color: #1f1f1f; border-radius: 10px; }
+    button { padding: 10px 15px; background-color: #00c853; color: white; border-radius: 5px; cursor: pointer; }
+    button:disabled { background-color: gray; cursor: not-allowed; }
+    #stopButton { background-color: #d32f2f; }
+    #taskSection {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            background-color: #2a2a2a;
+            box-shadow: 0px 0px 10px rgba(255, 255, 255, 0.1);
+    }
+    .task { margin-bottom: 15px; padding: 10px; border-radius: 8px; background: #1f1f1f; }
+    .task p { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+    .task button { margin: 5px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🐨 SleepySloth Miner</h1>
+    <button id="loginButton">🔑 Login with Google</button>
+    <p id="user">Not logged in</p>
+
+    <h2>💰 Wallet: <span id="walletBalance">0</span> Coins</h2>
+    <h3>🏆 Points: <span id="pointsBalance">0</span> Points</h3>
+
+    <button id="mineButton">⛏️ Start Mining</button>
+    <button id="stopButton" disabled>🛑 Stop Mining</button>
+
+    <p id="status">Mining paused</p>
+    <p id="countdown"></p>
+
+    <!-- Task Section -->
+    <div id="taskSection">
+        <h2>🎯 Complete Tasks & Earn Rewards</h2>
+
+        <div class="task">
+            <p>🐦 Follow us on Twitter</p>
+            <a href="https://twitter.com/SleepySlothMiner" target="_blank">
+                <button>Follow</button>
+            </a>
+            <button id="verifyTwitter" disabled>✅ Verify & Get 100 Points</button>
+        </div>
+
+        <div class="task">
+            <p>🔁 Repost (Retweet) Our Tweet</p>
+            <a href="https://twitter.com/SleepySlothMiner/status/1234567890" target="_blank">
+                <button>Repost</button>
+            </a>
+            <button id="verifyRetweet" disabled>✅ Verify & Get 50 Points</button>
+        </div>
+
+        <div class="task">
+            <p>💬 Join our Telegram</p>
+            <a href="https://t.me/SleepySlothMinerCommunity" target="_blank">
+                <button>Join</button>
+            </a>
+            <button id="verifyTelegram" disabled>✅ Verify & Get 150 Points</button>
+        </div>
+    </div>
+  </div>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyBbIeF_VtKI6z60oZmnn0TgKjPx8kv61kQ",
+    authDomain: "sleepyslothminer-73351.firebaseapp.com",
+    projectId: "sleepyslothminer-73351",
+    storageBucket: "sleepyslothminer-73351.firebasestorage.app",
+    messagingSenderId: "315791075690",
+    appId: "1:315791075690:web:dd5563deef281397999d13"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+let userId = null;
+let points = localStorage.getItem("points") ? parseInt(localStorage.getItem("points")) : 0;
+let mining = localStorage.getItem("mining") === "true";
+let miningStartTime = localStorage.getItem("miningStartTime") ? parseInt(localStorage.getItem("miningStartTime")) : null;
+let miningInterval;
+
+document.getElementById("pointsBalance").innerText = points;
+
+function login() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+
+    auth.signInWithPopup(provider)
+        .then((result) => {
+            userId = result.user.uid;
+            document.getElementById("user").innerText = `Logged in as: ${result.user.displayName}`;
+        })
+        .catch((error) => {
+            console.error("❌ Google Sign-In Error:", error.message);
+            alert("Google Sign-In Failed! " + error.message);
+        });
+}
+
+function startMining() {
+    if (miningInterval) clearInterval(miningInterval);
+    
+    mining = true;
+    miningStartTime = Date.now();
+    localStorage.setItem("mining", "true");
+    localStorage.setItem("miningStartTime", miningStartTime.toString());
+
+    document.getElementById("mineButton").disabled = true;
+    document.getElementById("stopButton").disabled = false;
+    document.getElementById("status").innerText = "⏳ Mining active...";
+
+    miningInterval = setInterval(() => {
+        points += 1;
+        localStorage.setItem("points", points);
+        document.getElementById("pointsBalance").innerText = points;
+
+        updatePoints(points); // 🔥 Update Firebase with new points
+    }, 60000);
+
+    updateCountdown(); // Run countdown immediately
+}
+
+function stopMining() {
+    clearInterval(miningInterval);
+    mining = false;
+    localStorage.setItem("mining", "false");
+
+    document.getElementById("mineButton").disabled = false;
+    document.getElementById("stopButton").disabled = true;
+
+    document.getElementById("status").innerText = "⛏️ Mining paused. Press Start to begin.";
+}
+
+function updateCountdown() {
+    if (!miningStartTime) {
+        document.getElementById("countdown").innerHTML = "";
+        return;
+    }
+
+    let elapsedHours = (Date.now() - miningStartTime) / (1000 * 60 * 60);
+    let remainingTime = 24 - elapsedHours;
+
+    if (remainingTime <= 0) {
+        document.getElementById("countdown").innerHTML = "⏳ Mining session complete!<br>Restart to mine again.";
+        stopMining();
+        return;
+    }
+
+    let hours = Math.floor(remainingTime);
+    let minutes = Math.floor((remainingTime - hours) * 60);
+
+    if (mining) {
+        document.getElementById("status").innerText = "⏳ Mining active...";
+    }
+
+    document.getElementById("countdown").innerHTML = `⏳ Time left: ${hours}h ${minutes}m`;
+}
+
+// Run updateCountdown every second
+setInterval(updateCountdown, 1000);
+
+// Auto restart mining on page reload if active
+window.onload = function () {
+    if (mining && miningStartTime) {
+        startMining();
+    }
+};
+
+// Task System
+function completeTask(task, reward) {
+    if (!localStorage.getItem(task)) {
+        points += reward;
+        localStorage.setItem("points", points);
+        localStorage.setItem(task, "true");
+        document.getElementById("pointsBalance").innerText = points;
+        alert(`✅ Task Completed! You received ${reward} Points.`);
+    }
+}
+
+document.getElementById("loginButton").addEventListener("click", login);
+document.getElementById("mineButton").addEventListener("click", startMining);
+document.getElementById("stopButton").addEventListener("click", stopMining);
+
+document.getElementById("verifyTwitter").addEventListener("click", function () {
+    completeTask("twitterFollowed", 100);
+    this.disabled = true;
+});
+
+document.getElementById("verifyRetweet").addEventListener("click", function () {
+    completeTask("tweetRetweeted", 50);
+    this.disabled = true;
+});
+
+document.getElementById("verifyTelegram").addEventListener("click", function () {
+    completeTask("telegramJoined", 150);
+    this.disabled = true;
+});
+function updatePoints(newPoints) {
+    if (!userId) {
+        console.warn("User not logged in.");
+        return;
+    }
+
+    db.ref("users/" + userId + "/points").set(newPoints)
+        .then(() => console.log("✅ Points updated in Firebase:", newPoints))
+        .catch((error) => console.error("🔥 Error updating points:", error));
+}
+function login() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+
+    auth.signInWithPopup(provider)
+        .then((result) => {
+            userId = result.user.uid;
+            document.getElementById("user").innerText = `Logged in as: ${result.user.displayName}`;
+            
+            // Fetch user's points from Firebase
+            db.ref("users/" + userId + "/points").once("value")
+                .then((snapshot) => {
+                    if (snapshot.exists()) {
+                        points = snapshot.val();
+                        document.getElementById("pointsBalance").innerText = points;
+                    } else {
+                        db.ref("users/" + userId).set({ points: 0 });
+                    }
+                })
+                .catch((error) => console.error("🔥 Error fetching user data:", error));
+        })
+        .catch((error) => {
+            console.error("❌ Google Sign-In Error:", error.message);
+            alert("Google Sign-In Failed! " + error.message);
+        });
+}
+
+</script>
+</body>
+</html>
