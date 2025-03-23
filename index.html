@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SleepySloth Miner</title>
+
+  <!-- Firebase v9 Compat Mode -->
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
+
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; background-color: #121212; color: white; }
+    .container { max-width: 400px; margin: auto; padding: 20px; background-color: #1f1f1f; border-radius: 10px; }
+    button { padding: 10px 15px; background-color: #00c853; color: white; border-radius: 5px; cursor: pointer; }
+    button:disabled { background-color: gray; cursor: not-allowed; }
+    #stopButton { background-color: #d32f2f; }
+    #taskSection {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            background-color: #2a2a2a;
+            box-shadow: 0px 0px 10px rgba(255, 255, 255, 0.1);
+    }
+    .task { margin-bottom: 15px; padding: 10px; border-radius: 8px; background: #1f1f1f; }
+    .task p { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+    .task button { margin: 5px; font-size: 14px; }
+    #submitSuggestion{
+      margin-top: -80px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🐨 SleepySloth Miner</h1>
+    <button id="loginButton">🔑 Login with Google</button>
+    <p id="user">Not logged in</p>
+
+    <h2>💰 Wallet: <span id="walletBalance">0</span> Coins</h2>
+    <h3>🏆 Points: <span id="pointsBalance">0</span> Points</h3>
+
+    <button id="mineButton"disabled>⛏️ Start Mining</button>
+    <button id="stopButton" disabled>🛑 Stop Mining</button>
+
+    <p id="status">Mining paused</p>
+    <p id="countdown"></p>
+     
+    <!-- Task Section -->
+    <div id="taskSection">
+        <h2>🎯 Complete Tasks & Earn Rewards</h2>
+
+        <div class="task">
+            <p>🐦 Follow us on Twitter</p>
+            <a href="https://twitter.com/SleepySlothMiner" target="_blank">
+                <button>Follow</button>
+            </a>
+            <button id="verifyTwitter" disabled>✅ Verify & Get 100 Points</button>
+        </div>
+
+        <div class="task">
+            <p>🔁 Repost (Retweet) Our Tweet</p>
+            <a href="https://twitter.com/SleepySlothMiner/status/1234567890" target="_blank">
+                <button>Repost</button>
+            </a>
+            <button id="verifyRetweet" disabled>✅ Verify & Get 50 Points</button>
+        </div>
+
+        <div class="task">
+            <p>💬 Join our Telegram</p>
+            <a href="https://t.me/SleepySlothMinerCommunity" target="_blank">
+                <button>Join</button>
+            </a>
+            <button id="verifyTelegram" disabled>✅ Verify & Get 150 Points</button>
+        </div>
+    </div>
+    <!-- Like Button -->
+<p>❤️ Likes: <span id="likeCount">0</span></p>
+<button id="likeButton"disabled>👍 Like</button>
+
+<!-- Suggestion Form -->
+<h3>💡 Suggest an Improvement</h3>
+<textarea id="suggestionText" placeholder="Write your suggestion..." rows="3"></textarea>
+<button  id="submitSuggestion"disabled>📩 Submit</button>
+<p id="suggestionStatus"></p>
+
+  </div>
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBbIeF_VtKI6z60oZmnn0TgKjPx8kv61kQ",
+    authDomain: "sleepyslothminer-73351.firebaseapp.com",
+    projectId: "sleepyslothminer-73351",
+    storageBucket: "sleepyslothminer-73351.firebasestorage.app",
+    messagingSenderId: "315791075690",
+    appId: "1:315791075690:web:dd5563deef281397999d13"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+let userId = null;
+let points = 0;
+let mining = false;
+let miningInterval;
+
+const buttons = ["mineButton", "stopButton", "likeButton", "submitSuggestion", "verifyTwitter", "verifyRetweet", "verifyTelegram"];
+
+// ✅ Disable buttons & show login alert before login
+buttons.forEach((btnId) => {
+    let btn = document.getElementById(btnId);
+    if (btn) {
+        btn.disabled = true; // Keep buttons disabled
+
+        // Show alert when clicked before login
+        btn.addEventListener("click", function (event) {
+            if (!userId) { // Ensure user is not logged in
+                event.preventDefault(); // Prevent default action
+                alert("⚠️ Please Google Sign-In first!"); // Show alert
+            }
+        });
+    }
+});
+// ✅ Show alert before login
+function showLoginAlert(event) {
+    alert("⚠️ Please log in to Google first!");
+    event.preventDefault();
+}
+
+// ✅ Google Sign-In Function
+function login() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+
+    auth.signInWithPopup(provider)
+        .then((result) => {
+            userId = result.user.uid;
+            document.getElementById("user").innerText = `Logged in as: ${result.user.displayName}`;
+
+            enableButtons(); // Enable all buttons after login
+
+            // Load user data
+            db.ref("users/" + userId).once("value").then((snapshot) => {
+                if (snapshot.exists()) {
+                    let userData = snapshot.val();
+                    document.getElementById("pointsBalance").innerText = userData.points || 0;
+                    document.getElementById("walletBalance").innerText = userData.wallet || 0;
+                } else {
+                    db.ref("users/" + userId).set({ points: 0, wallet: 0, miningActive: false });
+                }
+            });
+
+            checkIfLiked();
+        })
+        .catch((error) => {
+            console.error("❌ Google Sign-In Error:", error.message);
+            alert("Google Sign-In Failed! " + error.message);
+        });
+}
+
+// ✅ Enable buttons after login & remove login alert
+function enableButtons() {
+    buttons.forEach((btnId) => {
+        let btn = document.getElementById(btnId);
+        if (btn) {
+            btn.disabled = false; // Enable buttons
+
+            // Remove login alert event
+            btn.replaceWith(btn.cloneNode(true)); // This removes previous event listeners
+        }
+    });
+
+    // Attach real event listeners after login
+    document.getElementById("mineButton").addEventListener("click", startMining);
+    document.getElementById("stopButton").addEventListener("click", stopMining);
+    document.getElementById("likeButton").addEventListener("click", likePost);
+    document.getElementById("submitSuggestion").addEventListener("click", submitSuggestion);
+}
+
+// ✅ Start Mining Function
+function startMining() {
+    if (!userId) {
+        alert("⚠️ Please log in first!");
+        return;
+    }
+
+    let miningStartTime = Date.now();
+    let miningEndTime = miningStartTime + 24 * 60 * 60 * 1000; // 24 hours from now
+
+    // Save mining session in Firebase
+    db.ref("users/" + userId).update({
+        miningStartTime: miningStartTime,
+        miningActive: true
+    });
+
+    // Save locally
+    localStorage.setItem("miningStartTime", miningStartTime);
+    localStorage.setItem("miningEndTime", miningEndTime);
+    localStorage.setItem("miningActive", "true");
+
+    document.getElementById("mineButton").disabled = true;
+    document.getElementById("stopButton").disabled = false;
+    document.getElementById("status").innerText = "⏳ Mining active...";
+
+    startCountdown();
+    startMiningProcess();
+}
+
+// ✅ Stop Mining & Transfer Points to Wallet
+function stopMining() {
+    if (!userId) {
+        alert("⚠️ Please log in first!");
+        return;
+    }
+
+    clearInterval(miningInterval);
+    clearInterval(countdownInterval);
+    
+    let miningStartTime = parseInt(localStorage.getItem("miningStartTime")) || 0;
+    let timeMined = Math.floor((Date.now() - miningStartTime) / (1000 * 60)); // 1 point per minute
+
+    let currentPoints = parseInt(document.getElementById("pointsBalance").innerText);
+    let newWalletBalance = parseInt(document.getElementById("walletBalance").innerText) + currentPoints;
+
+    // Update Firebase: Add points to wallet & reset mining
+    db.ref("users/" + userId).update({
+        wallet: newWalletBalance,
+        points: 0,
+        miningActive: false
+    });
+
+    // Update UI
+    document.getElementById("walletBalance").innerText = newWalletBalance;
+    document.getElementById("pointsBalance").innerText = "0";
+
+    // Reset mining status
+    localStorage.removeItem("miningStartTime");
+    localStorage.removeItem("miningEndTime");
+    localStorage.removeItem("miningActive");
+
+    document.getElementById("mineButton").disabled = false;
+    document.getElementById("stopButton").disabled = true;
+    document.getElementById("status").innerText = "⛏️ Mining paused. Press Start to begin.";
+    document.getElementById("countdown").innerText = ""; // Reset countdown
+}
+
+// ✅ Function to Continue Mining After Refresh
+function startMiningProcess() {
+    miningInterval = setInterval(() => {
+        let points = parseInt(document.getElementById("pointsBalance").innerText);
+        points += 1; // 1 point per minute
+        document.getElementById("pointsBalance").innerText = points;
+
+        // Update Firebase
+        db.ref("users/" + userId + "/points").set(points);
+    }, 60000); // Every minute
+}
+
+function startCountdown() {
+    function updateCountdown() {
+        let now = Date.now();
+        let miningEndTime = parseInt(localStorage.getItem("miningEndTime")) || 0;
+        let remainingTime = miningEndTime - now;
+
+        if (remainingTime <= 0) {
+            clearInterval(miningInterval);
+            clearInterval(countdownInterval);
+            stopMining();
+            return;
+        }
+
+        let hours = Math.floor(remainingTime / (1000 * 60 * 60));
+        let minutes = Math.floor((remainingTime % (1000 * 60 * 60)) / (1000 * 60));
+
+        document.getElementById("countdown").innerText = `⏳ Time left: ${hours}h ${minutes}m`;
+    }
+
+    updateCountdown();
+    countdownInterval = setInterval(updateCountdown, 60000); // Update every minute
+} 
+
+window.onload = function () {
+    auth.onAuthStateChanged((user) => {
+        if (user) {
+            userId = user.uid;
+            enableButtons();
+
+            // Check if mining was active
+            db.ref("users/" + userId).once("value").then((snapshot) => {
+                if (snapshot.exists()) {
+                    let userData = snapshot.val();
+                    let storedStartTime = userData.miningStartTime;
+                    let miningActive = userData.miningActive;
+
+                    if (miningActive && storedStartTime) {
+                        let now = Date.now();
+                        let elapsedTime = now - storedStartTime;
+                        let remainingTime = 24 * 60 * 60 * 1000 - elapsedTime;
+
+                        if (remainingTime > 0) {
+                            miningStartTime = storedStartTime;
+                            miningEndTime = miningStartTime + 24 * 60 * 60 * 1000;
+                            startCountdown();
+                            startMiningProcess(); // Continue mining after refresh
+                        } else {
+                            stopMining();
+                        }
+                    }
+                }
+            });
+        }
+    });
+};
+// ✅ Like System: Check if user already liked
+function checkIfLiked() {
+    if (!userId) return;
+
+    const userLikesRef = db.ref("userLikes");
+    userLikesRef.child(userId).once("value").then((snapshot) => {
+        if (snapshot.exists()) {
+            document.getElementById("likeButton").disabled = true;
+        }
+    });
+
+    const likesRef = db.ref("likes");
+    likesRef.once("value").then((snapshot) => {
+        document.getElementById("likeCount").innerText = snapshot.val() || 0;
+    });
+}
+
+// ✅ Like Button Function
+function likePost() {
+    if (!userId) {
+        alert("⚠️ Please log in first!");
+        return;
+    }
+
+    db.ref("userLikes").child(userId).set(true);
+    db.ref("likes").transaction((currentLikes) => (currentLikes || 0) + 1);
+
+    document.getElementById("likeButton").disabled = true;
+}
+
+
+// ✅ Suggestion Submission Function
+function submitSuggestion() {
+    if (!userId) {
+        alert("⚠️ Please log in first!");
+        return;
+    }
+
+    const suggestionText = document.getElementById("suggestionText").value.trim();
+    if (suggestionText === "") return;
+
+    db.ref("suggestions").push({ userId, suggestion: suggestionText, timestamp: Date.now() });
+    document.getElementById("suggestionText").value = "";
+}
+
+// ✅ Attach Login Button Event
+document.getElementById("loginButton").addEventListener("click", login);
+
+
+</script>
+</body>
+</html>
