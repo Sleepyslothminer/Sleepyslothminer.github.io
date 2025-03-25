@@ -563,13 +563,6 @@ document.querySelector(".nav-item[href='referrals.html']").addEventListener("cli
         navigator.clipboard.writeText(link);
         alert("📋 Referral link copied!");
     }
-  firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL)
-  .then(() => {
-    console.log("Auth persistence set to LOCAL");
-  })
-  .catch((error) => {
-    console.error("Error setting persistence:", error);
-  });
   </script>
  </body>
 </html>
