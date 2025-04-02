@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no" />
+  <title>SleepySloth Miner</title>
+
+  <!-- Firebase v9 Compat Mode -->
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
+  <style>
+ body { font-family: Arial, sans-serif; text-align: center; background-color: #121212; color: white; }  
+.container { max-width: 380px; margin: auto; padding: 15px; background-color: #1f1f1f; border-radius: 10px; } 
+button { padding: 8px 12px; background-color: #00c853; color: white; border-radius: 5px; cursor: pointer; } 
+button:disabled { background-color: gray; cursor: not-allowed; } 
+#stopButton { background-color: #d32f2f; } 
+#taskSection { margin-top: 15px; padding: 12px; border-radius: 10px; background-color: #2a2a2a; box-shadow: 0px 0px 8px rgba(255, 255, 255, 0.1); } 
+.task { margin-bottom: 10px; padding: 8px; border-radius: 8px; background: #1f1f1f; } 
+.task p { font-size: 14px; font-weight: bold; margin-bottom: 4px; } 
+.task button { margin: 4px; font-size: 13px; } 
+#submitSuggestion { margin-top: -50px; } 
+.download-btn { display: flex; align-items: center; background: #008CBA; color: white; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: bold; justify-content: center; } 
+.download-btn img { width: 25px; height: 25px; margin-right: 8px; } 
+.nav-bar { display: flex; background-color: #111; padding: 8px; border-radius: 10px; width: auto; justify-content: center; } 
+.nav-item { margin-top: 100px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px; margin: 4px; background-color: #222; border-radius: 10px; text-align: center; width: 55px; color: white; font-size: 11px; font-family: Arial, sans-serif; text-decoration: none; } 
+.nav-item img { width: 45px; height: 45px; margin-bottom: 4px; border-radius: 50%; } 
+.button-container { position: relative; width: 30px; height: 30px;margin-left: 350px;} 
+.rotating-bg { width: 30px; height: 30px; background: url('7395552.png') no-repeat center; background-size: contain; position: absolute; animation: rotate 4s linear infinite; border-radius: 50%; } 
+.button { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 7px; height: 7px; background-color: red; border: 4px solid gold; border-radius: 50%; box-shadow: 0 0 10px rgba(255, 215, 0, 0.8); cursor: pointer; } 
+.lottery-container { text-align: center; margin-top: 20px; position: relative; } 
+.wheel-container { position: relative; width: 250px; height: 250px; margin: auto; }
+.wheel { width: 250px; height: 250px; background: url('7395552.png') no-repeat center center; background-size: cover; border-radius: 50%; position: absolute; transition: transform 4s ease-out; }
+.pointer { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-bottom: 30px solid red; z-index: 10; }
+.wheel-text { position: absolute; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; transform-origin: center; }
+.wheel-text span { position: absolute; font-size: 16px; font-weight: bold; color: white; text-shadow: 2px 2px 4px black; transform-origin: center; }
+.h1 { display: none; opacity: 0; max-height: 0; overflow: hidden; transition: opacity 0.3s ease-in-out, max-height 0.3s ease-in-out; position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 380px; background-color: #1f1f1f; border-radius: 10px; z-index: 999; }
+.loader {
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top: 4px solid #fff;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 10px auto;
+}
+#miningLoader {
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top: 4px solid #fff;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    display: none; /* Hidden by default */
+    margin: 10px auto;
+}
+/* Prevent text size adjustment */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Better tap feedback */
+button, a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Prevent zoom on form inputs */
+@media screen and (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px; /* Prevents iOS zoom */
+  }
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.h1.show {
+    display: block;
+    opacity: 1;
+}
+@keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  </style>
+  
+</head>
+<body>
+    <div class="container">  
+       <h1>🐨 SleepySloth Miner</h1>
+      <button id="loginButton">🔑 Login with Google</button>
+      <p id="user">Not logged in</p>
+       <div class="button-container" onclick="toggleLottery()">
+        <div class="rotating-bg"></div>
+        <div class="button"></div>
+     </div>
+     <h3>⚡ Hash Rate: <span id="hashRate">0</span> H/s</h3>
+     <h3>⚙️ Hardware Level: <span id="hardwareLevel">1</span></h3>
+<h3>🔢 Total Hashes: <span id="totalHashes">0</span></h3>
+      <h2>💰 Wallet: <span id="walletBalance">0</span> Points</h2>
+      <h3>🏆 Points: <span id="pointsBalance">0</span> Points</h3>
+      <button id="mineButton" disabled>⛏️ Start Mining</button>
+      <button id="stopButton" disabled>🛑 Stop Mining</button>
+      <p id="status">⛏️ Press Start to begin mining.</p>
+      <p id="countdown"></p> <!-- ✅ Add this line -->
+        <div id="wallet" style="display: none;">
+           <input type="text" id="solanaWallet" placeholder="Enter your Solana wallet address">
+           <button id="saveWalletButton">Save Wallet</button>
+          <br>
+          <input type="number" id="withdrawAmount" placeholder="Enter amount to withdraw">
+         <button id="withdrawButton">Withdraw Coins</button>    
+        </div>
+        <div id="miningLoader" class="loader" style="display: none;"></div>
+    <div id="taskSection" style="display: none;">
+    <h2>🎯 Complete Tasks & Earn Rewards</h2>
+
+    <!-- Twitter Follow Task -->
+    <div class="task">
+        <p>🐦 Follow us on Twitter</p>
+        <a href="https://x.com/Slot74246Sleepy" target="_blank">
+            <button>Follow</button>
+        </a>
+        <input type="text" id="twitterHandle" placeholder="Enter your Twitter handle">
+        <button id="submitTwitter">Submit</button>
+        <p id="twitterStatus"></p>
+    </div>
+    <!-- Retweet Task -->
+    <div class="task">
+        <p>🔁 Repost (Retweet) Our Tweet</p>
+        <a href="https://x.com/Slot74246Sleepy/status/1906940101692952713" target="_blank">
+            <button>Repost</button>
+        </a>
+        <input type="text" id="retweetLink" placeholder="Paste your Retweet link">
+        <button id="submitRetweet">Submit</button>
+        <p id="retweetStatus"></p>
+    </div>
+
+    <!-- Telegram Task -->
+    <div class="task">
+        <p>💬 Join our Telegram</p>
+        <a href="https://t.me/WzM10ScPlXI4YWY1" target="_blank">
+            <button>Join Telegram</button>
+        </a>
+        <input type="text" id="telegramUserId" placeholder="Enter your Telegram  ID">
+        <button id="submitTelegram">Submit</button>
+        <p id="telegramStatus"></p>
+    </div>
+</div>
+        <div id="referralSection" style="display: none;">
+          <h2>👥 Invite & Earn</h2>
+          <p>Share your referral link and earn rewards when someone signs up!</p>
+          <div class="referral-box">
+            <p id="referralLink" class="referral-link">Generating...</p>
+            <button class="copy-btn" onclick="copyReferral()">📋 Copy Link</button>
+          </div>
+        </div>
+       <div id="dailySection"style="display:none">
+        <h2>🎁 Claim Your Daily Reward</h2>
+        <button id="claimBtn">Claim Daily Reward</button>
+        <p id="dailyStatus"></p>
+        </div>
+      </div>
+      <br>
+      
+       <!-- Like Button -->
+        <div class="container"style="margin-top:-38px">
+          <p>❤️ Likes: <span id="likeCount">0</span></p>
+           <button id="likeButton"disabled>👍 Like</button>
+
+        <!-- Suggestion Form -->
+           <h3>💡 Suggestion and problem form</h3>
+          <textarea id="suggestionText" placeholder="Write your suggestion..." rows="3"></textarea>
+          <button  id="submitSuggestion"disabled>📩 Submit</button>
+          <p id="suggestionStatus"></p>
+        </div>
+     </div>
+   <div class="h1" id="lotterySection" style="display: none;">
+    <h2>SleepySloth Lottery</h2>
+    <p>Points: <span id="points">0</span></p>
+    <p>Free Spins Left: <span id="freeSpins">3</span></p> <!-- Shows remaining spins -->
+    <div class="lottery-container">
+        <div class="wheel-container">
+            <div class="pointer"></div>
+            <div class="wheel" id="wheel">
+               <div class="wheel-text">
+                    <span style="top: 10%; left: 50%; transform: translate(-50%, -50%) rotate(0deg);">2</span>
+                    <span style="top: 18%; left: 84%; transform: translate(-50%, -50%) rotate(40deg);">5</span>
+                    <span style="top: 50%; left: 97%; transform: translate(-50%, -50%) rotate(80deg);">50</span>
+                    <span style="top: 84%; left: 84%; transform: translate(-50%, -50%) rotate(120deg);">150</span>
+                    <span style="top: 98%; left: 49%; transform: translate(-50%, -50%) rotate(200deg);">500</span>
+                    <span style="top: 85%; left: 16%; transform: translate(-50%, -50%) rotate(240deg);">650</span>
+                    <span style="top: 50%; left: 1%; transform: translate(-50%, -50%) rotate(280deg);">750</span>
+                    <span style="top: 17%; left: 18%; transform: translate(-50%, -50%) rotate(320deg);">1000</span>
+                    
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+    <button id="spinButton" onclick="spinWheel()">Start Lottery</button>
+	<button id="backHome">🏠 Back to Home</button>
+    <p id="result"></p>
+</div>
+     <div class="nav-bar">
+        <a href="home.html" class="nav-item">
+           <img src="wallet.webp" alt="Home">
+           Wallet
+        </a>
+        <a href="earn.html" class="nav-item">
+            <img src="Earn.webp" alt="Earn"> Earn
+        </a>
+       <a href="referrals.html" class="nav-item">
+           <img src="Referrals.webp" alt="Referrals">
+           Referrals
+       </a>
+       <a href="Daily.html" class="nav-item">
+        <img src="Daily.webp" alt="Daily">
+        Daily
+    </a>
+    <div>
+<script >
+const firebaseConfig = {
+    apiKey: "AIzaSyBbIeF_VtKI6z60oZmnn0TgKjPx8kv61kQ",
+    authDomain: "sleepyslothminer-73351.firebaseapp.com",
+    projectId: "sleepyslothminer-73351",
+    storageBucket: "sleepyslothminer-73351.firebasestorage.app",
+    messagingSenderId: "315791075690",
+    appId: "1:315791075690:web:dd5563deef281397999d13"
+};
+// Initialize Firebase
+try {
+  if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+} catch (e) {
+  console.error("Firebase init error:", e);
+}
+const auth = firebase.auth();
+const db = firebase.database();
+  // ✅ Add validation helpers here (reusable across functions)
+function validateTwitterHandle(handle) {
+  return /^@?(\w){1,15}$/.test(handle); // Twitter's rules: @optional, 1-15 chars
+}
+
+function validateTelegramID(id) {
+  return /^[a-zA-Z0-9_]{5,32}$/.test(id); // Telegram rules: 5-32 chars, no spaces
+}
+let hashRate = 0;
+let totalHashes = 0;
+let hashRateInterval;
+let hardwareLevel = 1;
+let userId = null;
+let points = 0;
+let mining = false;
+let miningInterval;
+let countdownInterval;
+const dailyPoints = 20;
+
+ // Placeholder for actual hash rate
+
+const buttons = ["mineButton", "stopButton", "likeButton", "submitSuggestion", "verifyTwitter", "verifyRetweet", "verifyTelegram"];
+
+// ✅ Disable buttons & show login alert before login
+buttons.forEach((btnId) => {
+    let btn = document.getElementById(btnId);
+    if (btn) {
+        btn.disabled = true; // Keep buttons disabled
+
+        // Show alert when clicked before login
+        btn.addEventListener("click", function (event) {
+            if (!userId) { // Ensure user is not logged in
+                event.preventDefault(); // Prevent default action
+                alert("⚠️ Please Google Sign-In first!"); // Show alert
+            }
+        });
+    }
+});
+// ✅ Show alert before login
+function showLoginAlert(event) {
+    alert("⚠️ Please log in to Google first!");
+    event.preventDefault();
+}
+
+// ✅ Google Sign-In Function
+async function login() {
+    try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: "select_account" });
+
+        const result = await auth.signInWithPopup(provider);
+        userId = result.user.uid;
+        document.getElementById("user").innerText = `Logged in as: ${result.user.displayName}`;
+
+        enableButtons(); // Enable all buttons after login
+
+        // Load user data
+        try {
+            const snapshot = await db.ref("users/" + userId).once("value");
+
+            if (snapshot.exists()) {
+                let userData = snapshot.val();
+                document.getElementById("pointsBalance").innerText = userData.points || 0;
+                document.getElementById("walletBalance").innerText = userData.wallet || 0;
+            } else {
+                try {
+                    await db.ref("users/" + userId).set({ points: 0, wallet: 0, miningActive: false });
+                } catch (dbError) {
+                    console.error("❌ Error initializing user data:", dbError.message);
+                    alert("Failed to initialize user data. Please try again.");
+                }
+            }
+        } catch (dbReadError) {
+            console.error("❌ Error fetching user data:", dbReadError.message);
+            alert("Failed to fetch user data. Please try again.");
+        }
+
+    } catch (error) {
+        console.error("❌ Google Sign-In Error:", error.message);
+        alert("Google Sign-In Failed! " + error.message);
+    }
+}
+// ✅ Enable buttons after login & remove login alert
+function enableButtons() {
+    console.log("✅ Enabling buttons...");
+    buttons.forEach((btnId) => {
+        let btn = document.getElementById(btnId);
+        if (btn) {
+            btn.disabled = false; // Enable all buttons
+            console.log(`Enabled: ${btnId}`);
+
+            // Remove login alert event
+            btn.replaceWith(btn.cloneNode(true)); // This removes previous event listeners
+        }
+    });
+
+    // ✅ Explicitly enable mining buttons after login
+    document.getElementById("mineButton").disabled = false;
+    document.getElementById("stopButton").disabled = true; // Stop is only enabled after starting
+
+    // ✅ Attach event listeners properly
+    let mineBtn = document.getElementById("mineButton");
+    if (mineBtn) {
+        console.log("⛏️ Attaching Start Mining button event");
+        mineBtn.addEventListener("click", startMining);
+    }
+
+    let stopBtn = document.getElementById("stopButton");
+    if (stopBtn) {
+        console.log("🛑 Attaching Stop Mining button event");
+        stopBtn.addEventListener("click", stopMining);
+    }
+}
+
+    // ✅ Ensure this function exists before attaching
+
+    let submitBtn = document.getElementById("submitSuggestion");
+    if (submitBtn) submitBtn.addEventListener("click", submitSuggestion);
+
+
+// ✅ Start Mining Function
+async function startMining() {
+    if (!userId) {
+        alert("⚠️ Please log in first!");
+        return;
+    }
+
+    console.log("⛏️ Starting mining session...");
+    isMiningManuallyStarted = true;
+
+    // Clear any existing intervals
+    clearAllIntervals();
+
+    try {
+        // Initialize mining session
+        const miningStartTime = Date.now();
+        const miningEndTime = miningStartTime + 24 * 60 * 60 * 1000; // 24 hours
+
+        // Update UI immediately
+        document.getElementById("mineButton").disabled = true;
+        document.getElementById("stopButton").disabled = false;
+        document.getElementById("status").textContent = "⏳ Mining active...";
+        document.getElementById("countdown").textContent = "⏳ Calculating...";
+        
+        // Initialize hash rate display
+        document.getElementById("hashRate").textContent = "0";
+        document.getElementById("totalHashes").textContent = "0";
+
+        // Load user's hardware level from Firebase
+        const userSnapshot = await db.ref("users/" + userId).once("value");
+        const userData = userSnapshot.val() || {};
+        const hardwareLevel = userData.hardwareLevel || 1;
+        let totalHashes = userData.totalHashes || 0;
+
+        // Save initial mining state to Firebase
+        await db.ref("users/" + userId).update({
+            miningStartTime: miningStartTime,
+            miningActive: true,
+            miningEndTime: miningEndTime,
+            lastUpdated: Date.now(),
+            points: firebase.database.ServerValue.increment(0), // Initialize if doesn't exist
+            hardwareLevel: hardwareLevel,
+            totalHashes: totalHashes
+        });
+
+        // Start hash rate updates (every second)
+        window.hashRateInterval = setInterval(() => {
+            const currentHashRate = calculateHashRate(hardwareLevel);
+            totalHashes += currentHashRate;
+            
+            // Update UI
+            document.getElementById("hashRate").textContent = currentHashRate.toLocaleString();
+            document.getElementById("totalHashes").textContent = totalHashes.toLocaleString();
+            
+            // Save to Firebase every 30 seconds to reduce writes
+            if (Date.now() - (userData.lastHashUpdate || 0) > 30000) {
+                db.ref("users/" + userId).update({
+                    totalHashes: totalHashes,
+                    lastHashUpdate: Date.now()
+                }).catch(e => console.error("Hash update error:", e));
+            }
+        }, 1000);
+
+        // Start mining process (1 point per minute)
+        window.miningInterval = setInterval(async () => {
+            try {
+                // Calculate points based on hash performance
+                const pointsEarned = calculatePointsFromHashes(totalHashes, hardwareLevel);
+                
+                await db.ref("users/" + userId + "/points").set(
+                    firebase.database.ServerValue.increment(pointsEarned)
+                );
+                console.log(`⛏️ +${pointsEarned} points mined`);
+                
+                // Reset hash counter after awarding points
+                totalHashes = 0;
+                await db.ref("users/" + userId).update({
+                    totalHashes: 0
+                });
+            } catch (error) {
+                console.error("❌ Mining tick error:", error);
+            }
+        }, 60000); // 1 minute interval
+
+        // Start real-time countdown with seconds
+        startCountdown(miningEndTime);
+
+        // Start heartbeat to keep session alive
+        startMiningHeartbeat();
+
+    } catch (error) {
+        console.error("❌ Mining setup failed:", error);
+        alert("Failed to start mining. Please try again.");
+        resetMiningUI();
+    }
+}
+
+// Helper functions for hash calculations
+function calculateHashRate(hardwareLevel) {
+    const baseRates = [0, 100, 250, 600, 1500, 4000]; // Index corresponds to hardware level
+    const fluctuation = 0.8 + Math.random() * 0.4; // 80-120% fluctuation
+    return Math.floor(baseRates[hardwareLevel] * fluctuation);
+}
+
+function calculatePointsFromHashes(totalHashes, hardwareLevel) {
+    // Base 1 point per minute + bonus based on hashes
+    const basePoints = 1;
+    const bonusPoints = Math.floor(totalHashes / (10000 / hardwareLevel));
+    return basePoints + Math.min(bonusPoints, 5); // Cap bonus at 5 points
+}
+// Modified stopMining function
+async function stopMining() {
+    if (!userId || !isMiningManuallyStarted) return;
+
+    console.log("🛑 Stopping mining...");
+    isMiningManuallyStarted = false;
+
+    try {
+        // Clear all intervals including the new hash rate interval
+        clearAllIntervals();
+
+        // Get final hash count before stopping
+        const hashRateDisplay = document.getElementById("hashRate").textContent;
+        const finalHashes = parseInt(hashRateDisplay.replace(/,/g, '')) || 0;
+
+        // Update Firebase with complete stop status
+        await db.ref("users/" + userId).update({
+            miningActive: false,
+            lastHashUpdate: Date.now(),
+            totalHashes: firebase.database.ServerValue.increment(finalHashes),
+            lastMiningSession: {
+                endedAt: Date.now(),
+                finalHashRate: finalHashes,
+                duration: Date.now() - (userData.miningStartTime || Date.now())
+            }
+        });
+
+        // Update UI
+        document.getElementById("mineButton").disabled = false;
+        document.getElementById("stopButton").disabled = true;
+        document.getElementById("status").textContent = "⏸️ Mining stopped";
+        document.getElementById("countdown").textContent = "";
+        document.getElementById("hashRate").textContent = "0";
+        
+        // Clear any mining-related local storage
+        cleanupMiningSession();
+
+    } catch (error) {
+        console.error("❌ Error stopping mining:", error);
+        alert("Failed to properly stop mining. Please refresh the page.");
+    }
+}
+
+// Enhanced clearAllIntervals function
+function clearAllIntervals() {
+    // Clear standard intervals
+    if (window.miningInterval) {
+        clearInterval(window.miningInterval);
+        window.miningInterval = null;
+    }
+    if (window.countdownInterval) {
+        clearInterval(window.countdownInterval);
+        window.countdownInterval = null;
+    }
+    if (window.hashRateInterval) {
+        clearInterval(window.hashRateInterval);
+        window.hashRateInterval = null;
+    }
+
+    // Clear heartbeat interval
+    const heartbeatInterval = localStorage.getItem("miningHeartbeatInterval");
+    if (heartbeatInterval) {
+        clearInterval(parseInt(heartbeatInterval));
+        localStorage.removeItem("miningHeartbeatInterval");
+    }
+}
+
+// New function to clean up session data
+function cleanupMiningSession() {
+    try {
+        localStorage.removeItem("miningHeartbeatInterval");
+        sessionStorage.removeItem("currentHashRate");
+        
+        // Reset any animation states
+        const miningLoader = document.getElementById("miningLoader");
+        if (miningLoader) miningLoader.style.display = "none";
+        
+    } catch (e) {
+        console.warn("Cleanup warning:", e);
+    }
+}
+
+// Enhanced startMiningHeartbeat with hash rate consideration
+function startMiningHeartbeat() {
+    // Clear any existing heartbeat
+    const existingHeartbeat = localStorage.getItem("miningHeartbeatInterval");
+    if (existingHeartbeat) clearInterval(parseInt(existingHeartbeat));
+
+    // Update Firebase every 5 minutes with comprehensive data
+    const heartbeatInterval = setInterval(async () => {
+        if (userId) {
+            try {
+                const hashRate = document.getElementById("hashRate").textContent;
+                await db.ref("users/" + userId).update({
+                    miningHeartbeat: Date.now(),
+                    lastHashRate: hashRate,
+                    lastActive: firebase.database.ServerValue.TIMESTAMP
+                });
+            } catch (error) {
+                console.error("Heartbeat failed:", error);
+            }
+        }
+    }, 5 * 60 * 1000);
+
+    // Store interval ID for cleanup
+    localStorage.setItem("miningHeartbeatInterval", heartbeatInterval.toString());
+}
+
+// Enhanced countdown display with hash rate context
+function updateCountdownDisplay(remainingMs) {
+    const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+    const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
+    
+    const hashRate = document.getElementById("hashRate").textContent;
+    const countdownEl = document.getElementById("countdown");
+    
+    if (countdownEl) {
+        countdownEl.innerHTML = `
+            ⏳ Time left: ${hours}h ${minutes}m ${seconds}s<br>
+            ⚡ Current hash rate: ${hashRate} H/s
+        `;
+    }
+}// ✅ Stop Mining & Transfer Points to Wallet
+async function stopMining() {
+    if (!userId) {
+        alert("⚠️ Please log in first!");
+        return;
+    }
+
+    console.log("🛑 Stopping mining...");
+
+    clearInterval(miningInterval);
+    clearInterval(countdownInterval);
+    
+    let miningStartTime = parseInt(localStorage.getItem("miningStartTime")) || 0;
+    let timeMined = Math.floor((Date.now() - miningStartTime) / (1000 * 60 * 60)); // 1 point per hour
+
+    console.log(`⏳ Time Mined: ${timeMined} hours`);
+
+    let pointsEl = document.getElementById("pointsBalance");
+    let walletEl = document.getElementById("walletBalance");
+
+    if (!pointsEl || !walletEl) {
+        console.error("❌ Element(s) not found! Cannot update balances.");
+        return;
+    }
+
+    let currentPoints = parseInt(pointsEl.innerText) || 0;
+    let newWalletBalance = (parseInt(walletEl.innerText) || 0) + currentPoints;
+
+    console.log(`💰 New Wallet Balance: ${newWalletBalance}`);
+
+    // ✅ Ensure "status" exists before setting text
+    let statusEl = document.getElementById("status");
+    if (statusEl) {
+        statusEl.innerText = "⛏️ Mining paused. Press Start to begin.";
+    } else {
+        console.error("❌ Element with ID 'status' not found!");
+    }
+
+    try {
+        // Update Firebase
+        await db.ref("users/" + userId).update({
+            wallet: newWalletBalance,
+            points: 0,
+            miningActive: false
+        });
+
+        console.log("✅ Wallet updated in Firebase!");
+    } catch (error) {
+        console.error("❌ Firebase update error:", error.message);
+        alert("Failed to update wallet balance. Please try again.");
+        return;
+    }
+
+    // Update UI safely
+    try {
+        walletEl.innerText = newWalletBalance;
+        pointsEl.innerText = "0";
+    } catch (uiError) {
+        console.error("❌ UI update error:", uiError.message);
+    }
+
+    // Reset mining status
+    try {
+        localStorage.removeItem("miningStartTime");
+        localStorage.removeItem("miningEndTime");
+        localStorage.removeItem("miningActive");
+    } catch (storageError) {
+        console.error("❌ Local storage error:", storageError.message);
+    }
+
+    let mineButton = document.getElementById("mineButton");
+    let stopButton = document.getElementById("stopButton");
+    let countdownEl = document.getElementById("countdown");
+
+    if (mineButton) mineButton.disabled = false;
+    if (stopButton) stopButton.disabled = true;
+    if (countdownEl) countdownEl.innerText = ""; // Reset countdown
+}
+let lastMiningTick = 0;
+// ✅ Function to Continue Mining After Refresh
+function startMiningProcess() {
+    // Clear any existing interval first
+    if (window.miningInterval) {
+        clearInterval(window.miningInterval);
+    }
+
+    // Start new interval (1 point per minute)
+    window.miningInterval = setInterval(async () => {
+        if (!userId) {
+            clearInterval(window.miningInterval);
+            return;
+        }
+
+        try {
+            // Get current points
+            const snapshot = await db.ref("users/" + userId + "/points").once("value");
+            const currentPoints = snapshot.val() || 0;
+            
+            // Update points (Firebase + UI)
+            await db.ref("users/" + userId + "/points").set(currentPoints + 1);
+            document.getElementById("pointsBalance").textContent = currentPoints + 1;
+            
+            console.log("⛏️ +1 Point (Mining Tick)");
+        } catch (error) {
+            console.error("❌ Mining tick error:", error);
+        }
+    }, 60000); // 60,000ms = 1 minute
+}
+function startCountdown(endTime) {
+    clearInterval(window.countdownInterval);
+    
+    function update() {
+        const remaining = endTime - Date.now();
+        if (remaining <= 0) {
+            clearInterval(window.countdownInterval);
+            stopMining();
+            return;
+        }
+        
+        // Calculate hours, minutes, and seconds
+        const hours = Math.floor(remaining / (1000 * 60 * 60));
+        const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+        
+        // Update the countdown display with seconds
+        document.getElementById("countdown").textContent = `⏳ Time left: ${hours}h ${minutes}m ${seconds}s`;
+    }
+    
+    update(); // Run immediately
+    window.countdownInterval = setInterval(update, 1000); // Update every second (1000ms)
+}
+let isMiningManuallyStarted = false;
+
+window.onload = function () {
+    console.log("🚀 Window loaded. Initializing...");
+
+    // Initialize hash rate display
+    document.getElementById("hashRate").textContent = "0";
+    document.getElementById("totalHashes").textContent = "0";
+
+    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+        .then(() => console.log("✅ Auth persistence enabled"))
+        .catch(error => console.error("❌ Auth persistence error:", error));
+
+    auth.onAuthStateChanged(async (user) => {
+        if (user) {
+            userId = user.uid;
+            console.log(`✅ User authenticated: ${user.displayName || user.email}`);
+
+            // Initialize UI elements
+            document.getElementById("mineButton").disabled = false;
+            document.getElementById("stopButton").disabled = true;
+            document.getElementById("status").textContent = "⏸️ Ready to mine";
+            document.getElementById("hashRate").textContent = "0";
+            document.getElementById("totalHashes").textContent = "0";
+
+            // Check for existing likes
+            checkIfLiked();
+
+            // Setup real-time listeners
+            db.ref("users/" + userId + "/points").on("value", (snapshot) => {
+                const points = snapshot.val() || 0;
+                document.getElementById("pointsBalance").textContent = points;
+            });
+
+            // Load user data and handle mining state
+            try {
+                const snapshot = await db.ref("users/" + userId).once("value");
+                const userData = snapshot.val() || {};
+                
+                // Display hardware level if available
+                if (userData.hardwareLevel) {
+                    document.getElementById("hardwareLevel").textContent = userData.hardwareLevel;
+                }
+
+                // Handle expired or active mining sessions
+                if (userData.miningActive) {
+                    if (userData.miningEndTime && Date.now() > userData.miningEndTime) {
+                        // Session expired - clean up
+                        await db.ref("users/" + userId).update({
+                            miningActive: false,
+                            points: firebase.database.ServerValue.increment(userData.points || 0)
+                        });
+                    } else {
+                        // Session still active - resume mining
+                        console.log("⏳ Resuming active mining session");
+                        document.getElementById("mineButton").disabled = true;
+                        document.getElementById("stopButton").disabled = false;
+                        document.getElementById("status").textContent = "⏳ Mining active...";
+                        
+                        // Restore hash rate display
+                        if (userData.totalHashes) {
+                            document.getElementById("totalHashes").textContent = 
+                                userData.totalHashes.toLocaleString();
+                        }
+                        
+                        // Restart mining process
+                        startMining();
+                    }
+                }
+
+                // Load total hashes if available
+                if (userData.totalHashes) {
+                    document.getElementById("totalHashes").textContent = 
+                        userData.totalHashes.toLocaleString();
+                }
+
+            } catch (error) {
+                console.error("❌ User data load failed:", error);
+                alert("Failed to load user data. Please refresh the page.");
+            }
+
+        } else {
+            console.log("🚫 No active user session");
+            userId = null;
+            disableButtons();
+            clearAllIntervals();
+            
+            // Reset mining displays
+            document.getElementById("hashRate").textContent = "0";
+            document.getElementById("totalHashes").textContent = "0";
+        }
+    });
+
+    // Initialize hardware upgrade button if exists
+    const upgradeBtn = document.getElementById("upgradeHardware");
+    if (upgradeBtn) {
+        upgradeBtn.addEventListener("click", upgradeHardware);
+    }
+};
+
+// Additional helper function for hardware upgrades
+async function upgradeHardware() {
+    if (!userId) {
+        alert("⚠️ Please log in first!");
+        return;
+    }
+
+    try {
+        const userRef = db.ref("users/" + userId);
+        const snapshot = await userRef.once("value");
+        const userData = snapshot.val() || {};
+        
+        const currentLevel = userData.hardwareLevel || 1;
+        const upgradeCost = currentLevel * 500; // Scaling cost
+        
+        if (currentLevel >= 5) {
+            alert("You already have the maximum hardware level!");
+            return;
+        }
+        
+        if ((userData.points || 0) < upgradeCost) {
+            alert(`You need ${upgradeCost} points to upgrade to level ${currentLevel + 1}`);
+            return;
+        }
+        
+        // Perform upgrade
+        await userRef.update({
+            hardwareLevel: currentLevel + 1,
+            points: firebase.database.ServerValue.increment(-upgradeCost)
+        });
+        
+        alert(`✅ Upgraded to hardware level ${currentLevel + 1}!`);
+        document.getElementById("hardwareLevel").textContent = currentLevel + 1;
+        
+        // If mining is active, the new hash rate will take effect immediately
+        if (userData.miningActive) {
+            document.getElementById("status").textContent = 
+                `⏳ Mining active (Level ${currentLevel + 1} hardware)`;
+        }
+        
+    } catch (error) {
+        console.error("Upgrade failed:", error);
+        alert("Failed to upgrade hardware. Please try again.");
+    }
+}    // Helper functions
+    function updateCountdownDisplay(remainingMs) {
+        const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+        const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
+        
+        const countdownEl = document.getElementById("countdown");
+        if (countdownEl) {
+            countdownEl.textContent = `⏳ Time left: ${hours}h ${minutes}m ${seconds}s`;
+        }
+    }
+    function setupEventListeners() {
+        // Set up all button listeners
+        const submitBtn = document.getElementById("submitSuggestion");
+        if (submitBtn) submitBtn.onclick = submitSuggestion;
+
+        const likeBtn = document.getElementById("likeButton");
+        if (likeBtn) likeBtn.onclick = likePost;
+
+        const mineBtn = document.getElementById("mineButton");
+        if (mineBtn) mineBtn.onclick = startMining;
+
+        const stopBtn = document.getElementById("stopButton");
+        if (stopBtn) stopBtn.onclick = stopMining;
+    }
+
+    // ✅ Toggle Daily Rewards Section
+    let dailyToggle = document.getElementById("dailyToggle");
+    let dailySection = document.getElementById("dailySection");
+
+    if (dailyToggle && dailySection) {
+        dailyToggle.addEventListener("click", function () {
+            dailySection.style.display = (dailySection.style.display === "none" || dailySection.style.display === "") ? "block" : "none";
+        });
+        console.log("✅ Daily Rewards button enabled.");
+    } else {
+        console.warn("⚠️ Daily Rewards section or button not found!");
+    }
+// ✅ Functions to enable and disable buttons
+function enableButtons() {
+    console.log("🔓 Enabling buttons...");
+
+    let mineBtn = document.getElementById("mineButton");
+    let stopBtn = document.getElementById("stopButton");
+    let submitBtn = document.getElementById("submitSuggestion");
+    let likeBtn = document.getElementById("likeButton");
+
+    if (mineBtn) mineBtn.disabled = false;
+    if (stopBtn) stopBtn.disabled = true;
+    if (submitBtn) submitBtn.disabled = false;
+    if (likeBtn) likeBtn.disabled = false;
+}
+
+function disableButtons() {
+    console.log("🔒 Disabling buttons...");
+
+    let mineBtn = document.getElementById("mineButton");
+    let stopBtn = document.getElementById("stopButton");
+    let submitBtn = document.getElementById("submitSuggestion");
+    let likeBtn = document.getElementById("likeButton");
+
+    if (mineBtn) mineBtn.disabled = true;
+    if (stopBtn) stopBtn.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
+    if (likeBtn) likeBtn.disabled = true;
+}
+        // ✅ Referral Tracking & Reward System
+        const urlParams = new URLSearchParams(window.location.search);
+        const referrerId = urlParams.get("ref");
+
+        if (referrerId && referrerId !== userId) {
+            db.ref("users/" + referrerId + "/referrals/" + userId).set({
+                referredAt: Date.now()
+            });
+
+            // Reward the referrer (e.g., 500 points)
+            db.ref("users/" + referrerId + "/points").once("value", (snapshot) => {
+                let currentPoints = snapshot.val() || 0;
+                db.ref("users/" + referrerId + "/points").set(currentPoints + 500);
+            });
+
+            alert("🎉 You signed up using a referral! Your referrer earned 500 points!");
+        }       
+// ✅ Check if user has liked the post
+function checkIfLiked() {
+    if (!userId) return;
+
+    const userLikesRef = db.ref("userLikes");
+    userLikesRef.child(userId).once("value").then((snapshot) => {
+        if (snapshot.exists()) {
+            // Disable like button if the user already liked
+            document.getElementById("likeButton").disabled = true;
+        }
+    });
+    // Fetch the total like count
+    const likesRef = db.ref("likes");
+    likesRef.once("value").then((snapshot) => {
+        document.getElementById("likeCount").innerText = snapshot.val() || 0;
+    });
+}
+
+// ✅ Like Button Function
+function likePost() {
+    if (!userId) {
+        alert("⚠️ Please log in first!");
+        return;
+    }
+
+    db.ref("userLikes").child(userId).set(true); // Record user like
+    db.ref("likes").transaction((currentLikes) => (currentLikes || 0) + 1); // Increment like count
+
+    // Disable like button after the user likes the post
+    document.getElementById("likeButton").disabled = true;
+}
+
+// ✅ Suggestion Submission Function
+function submitSuggestion() {
+    if (!userId) {
+        alert("⚠️ Please log in first!");
+        return;
+    }
+
+    const suggestionText = document.getElementById("suggestionText").value.trim();
+    if (suggestionText === "") {
+        alert("⚠️ Suggestion cannot be empty!");
+        return;
+    }
+
+    // Push suggestion to Firebase
+    db.ref("suggestions").push({
+        userId,
+        suggestion: suggestionText,
+        timestamp: Date.now()
+    })
+    .then(() => {
+        document.getElementById("suggestionText").value = ""; // Clear text area
+        document.getElementById("suggestionStatus").innerText = "✅ Suggestion submitted successfully!";
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+            document.getElementById("suggestionStatus").innerText = "";
+        }, 3000);
+    })
+    .catch((error) => {
+        console.error("❌ Error submitting suggestion:", error);
+        document.getElementById("suggestionStatus").innerText = "❌ Submission failed! Please try again.";
+    });
+}
+
+// Add event listener for the submit button
+document.getElementById("submitSuggestion").addEventListener("click", function(e) {
+    console.log("Submit button clicked!");
+    submitSuggestion(); // Call the function when the button is clicked
+});
+
+// Add event listener for the like button
+document.getElementById("likeButton").addEventListener("click", function(e) {
+    console.log("Like button clicked!");
+    likePost(); // Call likePost function when the like button is clicked
+});
+
+// ✅ Attach Login Button Event
+document.getElementById("loginButton").addEventListener("click", login);
+ // Select all navbar items
+ const navItems = document.querySelectorAll(".nav-item");
+
+navItems.forEach(item => { 
+    item.addEventListener("click", function (event) {
+        let taskSection = document.getElementById("taskSection");
+
+        // Check if the Earn button is clicked
+        if (this.getAttribute("href") === "earn.html") {
+            event.preventDefault(); // Prevent page reload
+            
+            // Toggle task section visibility
+            if (taskSection.style.display === "none" || taskSection.style.display === "") {
+                taskSection.style.display = "block"; // Show tasks
+            } else {
+                taskSection.style.display = "none"; // Hide tasks
+            }
+        }
+    });
+});
+document.querySelector(".nav-item[href='referrals.html']").addEventListener("click", function (event) {
+        event.preventDefault(); // Prevent page reload
+
+        let referralSection = document.getElementById("referralSection");
+        if (referralSection.style.display === "none" || referralSection.style.display === "") {
+            referralSection.style.display = "block"; // Show referral section
+        } else {
+            referralSection.style.display = "none"; // Hide referral section
+        }
+    });
+
+    auth.onAuthStateChanged((user) => {
+        if (user) {
+            userId = user.uid;
+            const referralLink = `https://sleepyslothminer.github.io/?ref=${userId}`;
+            document.getElementById("referralLink").innerText = referralLink;
+        }
+    });
+
+    function copyReferral() {
+        const link = document.getElementById("referralLink").innerText;
+        navigator.clipboard.writeText(link);
+        alert("📋 Referral link copied!");
+    }
+// Ensure Firebase is initialized and user login is handled
+firebase.auth().onAuthStateChanged(function(user) {
+    if (user) {
+        // User is signed in
+        userId = user.uid;
+        enableButtons(); // Enable the submit button after login
+        checkIfLiked(); // Check if the user already liked the post
+    } else {
+        // User is signed out
+        userId = null;
+        disableButtons(); // Disable the submit button
+    }
+});
+// Function to save Solana wallet in Firebase
+function saveWallet() {
+    let walletAddress = document.getElementById("solanaWallet").value.trim();
+
+    if (!walletAddress) {
+        alert("❌ Please enter a valid Solana wallet address.");
+        return;
+    }
+
+    db.ref("users/" + userId).update({
+        solanaWallet: walletAddress
+    }).then(() => {
+        alert("✅ Wallet saved successfully!");
+    }).catch((error) => {
+        console.error("❌ Error saving wallet:", error);
+    });
+}
+
+// Attach event listener to Save Wallet button
+document.getElementById("saveWalletButton").addEventListener("click", saveWallet);
+function withdrawCoins() {
+    let withdrawAmount = parseInt(document.getElementById("withdrawAmount").value);
+
+    if (isNaN(withdrawAmount) || withdrawAmount <= 0) {
+        alert("❌ Enter a valid amount to withdraw.");
+        return;
+    }
+    // Get user data from Firebase
+    db.ref("users/" + userId).once("value").then((snapshot) => {
+        if (snapshot.exists()) {
+            let userData = snapshot.val();
+            let currentBalance = userData.wallet || 0;
+            let walletAddress = userData.solanaWallet;
+
+            if (!walletAddress) {
+                alert("❌ No Solana wallet saved! Please enter and save your wallet first.");
+                return;
+            }
+
+            if (withdrawAmount > currentBalance) {
+                alert("❌ Not enough coins to withdraw.");
+                return;
+            }
+
+            // Subtract the withdrawn amount
+            let newBalance = currentBalance - withdrawAmount;
+
+            // ✅ Update Firebase with new balance
+            db.ref("users/" + userId).update({
+                wallet: newBalance
+            }).then(() => {
+                alert(`✅ Withdraw successful! Sent ${withdrawAmount} coins to ${walletAddress}`);
+
+                // 🚀 TODO: Send coins on Solana blockchain (requires Web3 integration)
+            }).catch((error) => {
+                console.error("❌ Error withdrawing coins:", error);
+            });
+        }
+    });
+}
+const navItemss = document.querySelectorAll(".navs-item");
+
+navItems.forEach(item => { 
+    item.addEventListener("click", function (event) {
+        let wallet = document.getElementById("wallet");
+
+        // Check if the Earn button is clicked
+        if (this.getAttribute("href") === "home.html") {
+            event.preventDefault(); // Prevent page reload
+            
+            // Toggle task section visibility
+            if (wallet.style.display === "none" || wallet.style.display === "") {
+                wallet.style.display = "block"; // Show tasks
+            } else {
+                wallet.style.display = "none"; // Hide tasks
+            }
+        }
+    });
+});
+// ✅ Function to Check If User Has Claimed Today
+function checkDailyReward() {
+    if (!userId) return;
+
+    const userRef = db.ref(`users/${userId}/lastClaimed`);
+    userRef.once("value").then(snapshot => {
+        const lastClaimed = snapshot.val();
+        const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+
+        if (lastClaimed === today) {
+            document.getElementById("claimBtn").disabled = true;
+            document.getElementById("claimBtn").innerText = "✅ Claimed Today";
+        } else {
+            document.getElementById("claimBtn").disabled = false;
+            document.getElementById("claimBtn").innerText = "Claim Daily Reward";
+        }
+    });
+}
+
+// ✅ Function to Claim Daily Reward
+document.getElementById("claimBtn").addEventListener("click", () => {
+    if (!userId) {
+        alert("⚠️ Please log in first!");
+        return;
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+
+    db.ref(`users/${userId}`).once("value").then(snapshot => {
+        let currentPoints = snapshot.val()?.points || 0;
+        db.ref(`users/${userId}`).update({
+            points: currentPoints + 20, // Add 20 points
+            lastClaimed: today
+        }).then(() => {
+            document.getElementById("pointsBalance").innerText = currentPoints + 20;
+            document.getElementById("claimBtn").disabled = true;
+            document.getElementById("claimBtn").innerText = "✅ Claimed Today";
+        }).catch(error => {
+            console.error("❌ Error updating points:", error);
+        });
+    });
+});
+
+// ✅ Run Check When User Logs In
+auth.onAuthStateChanged(user => {
+    if (user) {
+        userId = user.uid;
+        checkDailyReward(); // Check if they already claimed today
+    }
+});
+
+const navItemsss = document.querySelectorAll(".navs-item");
+
+navItems.forEach(item => { 
+    item.addEventListener("click", function (event) {
+        let wallet = document.getElementById("dailySection");
+
+        // Check if the Earn button is clicked
+        if (this.getAttribute("href") === "Daily.html") {
+            event.preventDefault(); // Prevent page reload
+            
+            // Toggle task section visibility
+            if (wallet.style.display === "none" || wallet.style.display === "") {
+                wallet.style.display = "block"; // Show tasks
+            } else {
+                wallet.style.display = "none"; // Hide tasks
+            }
+        }
+    });
+});
+// Add the toggleLottery function at the end or wherever suitable
+function toggleLottery() {
+    let lotterySection = document.getElementById("lotterySection");
+    if (lotterySection.style.display === "none" || lotterySection.style.display === "") {
+        lotterySection.style.display = "block";
+    } else {
+        lotterySection.style.display = "none";
+    }
+}
+let pointss = localStorage.getItem("points") ? parseInt(localStorage.getItem("points")) : 0;
+        let lastSpinDate = localStorage.getItem("lastSpinDate") || "";
+        let freeSpins = localStorage.getItem("freeSpins") ? parseInt(localStorage.getItem("freeSpins")) : 3;
+
+        let today = new Date().toISOString().split("T")[0];
+
+        // Reset spins at midnight
+        if (lastSpinDate !== today) {
+            freeSpins = 3;
+            localStorage.setItem("freeSpins", freeSpins);
+            localStorage.setItem("lastSpinDate", today);
+        }
+
+        // Display points and free spins
+        document.getElementById("points").innerText = points;
+        document.getElementById("freeSpins").innerText = freeSpins;
+        let spinButton = document.getElementById("spinButton");
+
+        // Disable spin button if no free spins left
+        if (freeSpins === 0) {
+            spinButton.disabled = true;
+        }
+
+       let currentRotations = 0; // Store the current rotation
+
+       let currentRotation = 0; // Ensure rotation starts properly
+
+       function spinWheel() {
+    // Debug: Check if function is being called
+    console.log("Spin wheel function called");
+    
+    if (!userId) {
+        alert("⚠️ Please log in first!");
+        return;
+    }
+
+    if (freeSpins <= 0) {
+        document.getElementById("result").innerText = "No free spins left for today!";
+        return;
+    }
+
+    // Deduct a free spin
+    freeSpins--;
+    localStorage.setItem("freeSpins", freeSpins);
+    document.getElementById("freeSpins").innerText = freeSpins;
+
+    // Weighted rewards
+    const weightedRewards = [
+        { value: 2, angle: 0, weight: 55 },
+        { value: 5, angle: 40, weight: 30 },
+        { value: 150, angle: 120, weight: 12 },
+        { value: 750, angle: 280, weight: 2 },
+        { value: 1000, angle: 320, weight: 1 }
+    ];
+
+    // Select a random reward
+    const totalWeight = weightedRewards.reduce((sum, item) => sum + item.weight, 0);
+    let randomNum = Math.random() * totalWeight;
+    let selectedReward;
+    
+    for (const reward of weightedRewards) {
+        if (randomNum <= reward.weight) {
+            selectedReward = reward;
+            break;
+        }
+        randomNum -= reward.weight;
+    }
+
+    // Debug: Verify reward selection
+    console.log("Selected reward:", selectedReward);
+
+    // Get wheel element
+    const wheel = document.getElementById("wheel");
+    if (!wheel) {
+        console.error("Wheel element not found!");
+        return;
+    }
+
+    // Debug: Check current wheel state
+    console.log("Current wheel transform:", wheel.style.transform);
+
+    // Reset wheel position
+    wheel.style.transition = "none";
+    wheel.style.transform = "rotate(0deg)";
+    
+    // Force browser to apply the reset
+    void wheel.offsetWidth;
+
+    // Calculate spin parameters
+    const spinDuration = 4000; // 4 seconds
+    const spins = 5; // Number of full rotations
+    const targetRotation = 360 * spins + selectedReward.angle;
+
+    // Debug: Verify rotation calculation
+    console.log(`Target rotation: ${targetRotation}°`);
+
+    // Apply spin animation
+    wheel.style.transition = `transform ${spinDuration}ms cubic-bezier(0.2, 0.1, 0.1, 1)`;
+    wheel.style.transform = `rotate(-${targetRotation}deg)`;
+
+    // Debug: Verify applied styles
+    console.log("Applied transition:", wheel.style.transition);
+    console.log("Applied transform:", wheel.style.transform);
+
+    // Update points after spin completes
+    setTimeout(() => {
+        db.ref("users/" + userId).once("value").then((snapshot) => {
+            const userData = snapshot.val() || {};
+            const currentPoints = userData.points || 0;
+            const newPoints = currentPoints + selectedReward.value;
+
+            db.ref("users/" + userId).update({ points: newPoints })
+                .then(() => {
+                    document.getElementById("points").innerText = newPoints;
+                    document.getElementById("pointsBalance").innerText = newPoints;
+                    document.getElementById("result").innerText = `🎉 You won ${selectedReward.value} points!`;
+                    
+                    if (freeSpins === 0) {
+                        document.getElementById("spinButton").disabled = true;
+                    }
+                })
+                .catch(error => {
+                    console.error("Firebase update error:", error);
+                    // Restore spin if update fails
+                    freeSpins++;
+                    localStorage.setItem("freeSpins", freeSpins);
+                    document.getElementById("freeSpins").innerText = freeSpins;
+                });
+        });
+    }, spinDuration);
+}
+
+document.querySelector(".button-container").addEventListener("click", () => {
+    let lotterySection = document.querySelector(".h1");
+    let allContent = document.querySelectorAll("body > *:not(.h1)"); // Select all except .h1
+
+    if (lotterySection.style.opacity === "0" || !lotterySection.style.opacity) {
+        // Show lottery section at the top
+        lotterySection.style.display = "block";
+        setTimeout(() => {
+            lotterySection.style.opacity = "1";
+            lotterySection.style.maxHeight = "100vh"; // Full screen height
+        }, 10);
+        
+        // Hide other content
+        allContent.forEach(el => el.style.display = "none");
+
+    } else {
+        // Hide lottery section
+        lotterySection.style.opacity = "0";
+        lotterySection.style.maxHeight = "0";
+        setTimeout(() => {
+            lotterySection.style.display = "none";
+        }, 300);
+
+        // Show all hidden content back
+        allContent.forEach(el => el.style.display = "");
+    }
+});
+document.getElementById("backHome").addEventListener("click", () => { 
+    document.querySelector(".h1").style.display = "none"; 
+    document.querySelectorAll("body > *:not(.h1)").forEach(el => el.style.display = ""); 
+});
+function submitTask(taskType, inputId, statusId, validationFunc) {
+    try {
+        const inputValue = document.getElementById(inputId)?.value.trim();
+        const statusElement = document.getElementById(statusId);
+
+        // 1. Input Validation
+        if (!inputValue) {
+            statusElement.innerText = `❌ ${taskType} cannot be empty!`;
+            return;
+        }
+
+        // 2. Platform-Specific Validation
+        if (taskType === "twitter" && !validateTwitterHandle(inputValue)) {
+            statusElement.innerText = "❌ Invalid Twitter handle! Format: @username (1-15 chars)";
+            return;
+        }
+
+        if (taskType === "telegram" && !validateTelegramID(inputValue)) {
+            statusElement.innerText = "❌ Invalid Telegram ID! Use 5-32 letters/numbers/_";
+            return;
+        }
+
+        // 3. General Validation (fallback to passed validationFunc)
+        if (!validationFunc(inputValue)) {
+            statusElement.innerText = `❌ Invalid ${taskType} format!`;
+            return;
+        }
+
+        // 4. Authentication Check
+        if (!userId) {
+            statusElement.innerText = "❌ Session expired! Please reload and log in.";
+            console.error("Auth error: User not logged in");
+            return;
+        }
+
+        console.log(`📩 Valid ${taskType} submission:`, inputValue);
+
+        // 5. Firebase Submission
+        db.ref(`tasks/${userId}/${taskType}`).set({
+            [taskType]: inputValue,
+            timestamp: Date.now()
+        }).then(() => {
+            statusElement.innerText = `✅ ${taskType} verified!`;
+            console.log(`🔥 ${taskType} saved to Firebase`);
+            
+            // Optional: Clear input on success
+            document.getElementById(inputId).value = "";
+        }).catch(error => {
+            statusElement.innerText = `❌ Network error! Try again.`;
+            console.error("Firebase failed:", error);
+            
+            // Optional: Retry logic could be added here
+        });
+
+    } catch (error) {
+        console.error(`💥 Critical ${taskType} error:`, error);
+        document.getElementById(statusId).innerText = "❌ System error! Contact support.";
+    }
+}
+
+// 🐦 Twitter Handle Submission
+document.getElementById("submitTwitter")?.addEventListener("click", function () {
+    try {
+        submitTask("twitter", "twitterHandle", "twitterStatus", value => value !== "");
+    } catch (error) {
+        console.error("❌ Error in Twitter submission:", error.message);
+    }
+});
+
+// 🔁 Retweet Link Submission
+document.getElementById("submitRetweet")?.addEventListener("click", function () {
+    try {
+        submitTask("retweet", "retweetLink", "retweetStatus", value => value.includes("twitter.com"));
+    } catch (error) {
+        console.error("❌ Error in Retweet submission:", error.message);
+    }
+});
+
+// 💬 Telegram ID Submission
+document.getElementById("submitTelegram")?.addEventListener("click", function () {
+    try {
+        submitTask("telegram", "telegramUserId", "telegramStatus", value => value !== "");
+    } catch (error) {
+        console.error("❌ Error in Telegram submission:", error.message);
+    }
+});
+
+// Scroll function with error handling
+function scrollToIntro() {
+    try {
+        document.getElementById("intro")?.scrollIntoView({ behavior: "smooth" });
+    } catch (error) {
+        console.error("❌ Error scrolling to intro:", error.message);
+    }
+}
+function calculateHashRate() {
+    // Base hash rate (adjust these numbers as needed)
+    const baseRate = 100; 
+    
+    // Random fluctuation to make it more realistic (±20%)
+    const fluctuation = (Math.random() * 0.4 + 0.8); 
+    
+    // Multiplier based on hardware level (1-5)
+    const hardwareMultiplier = hardwareLevel * 0.5; 
+    
+    return Math.floor(baseRate * fluctuation * hardwareMultiplier);
+}
+
+// 1. First, make sure you have proper button event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('mineButton').addEventListener('click', startMining);
+    document.getElementById('stopButton').addEventListener('click', stopMining);
+});
+
+        function scrollToIntro() {
+    document.getElementById("intro").scrollIntoView({ behavior: "smooth" });
+  }
+// ✅ Attach Login Button Event
+document.getElementById("loginButton").addEventListener("click", login);
+  </script>
+ </body>
+</html>
