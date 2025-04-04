@@ -77,18 +77,24 @@ button:disabled { background-color: gray; cursor: not-allowed; }
       <h3>🏆 Points: <span id="pointsBalance">0</span> Points</h3>
       <button id="mineButton" disabled>⛏️ Start Mining</button>
       <button id="stopButton" disabled>🛑 Stop Mining</button>
-	    <div style="width: 468px; height: 60px; margin: 15px auto; text-align: center;">
-  <script type="text/javascript">
-    atOptions = {
+	<div id="atContainer-2b9cdc94d712b5f48eb73f37e47cc203" style="width: 468px; height: 60px; margin: 20px auto; text-align: center;"></div>
+
+<script type="text/javascript">
+  if (typeof atAsyncOptions !== 'object') var atAsyncOptions = [];
+  atAsyncOptions.push({
       'key': '2b9cdc94d712b5f48eb73f37e47cc203',
-      'format': 'iframe',
-      'height': 60,
-      'width': 468,
-      'params': {}
-    };
-  </script>
-  <script type="text/javascript" src="//www.adsterra.com/2b9cdc94d712b5f48eb73f37e47cc203/invoke.js"></script>
-</div>
+      'format': 'js',
+      'async': true,
+      'container': 'atContainer-2b9cdc94d712b5f48eb73f37e47cc203',
+      'params' : {}
+  });
+  var script = document.createElement('script');
+  script.type = "text/javascript";
+  script.async = true;
+  script.src = 'https' + '://www.highperformanceformat.com/2b9cdc94d712b5f48eb73f37e47cc203/invoke.js';
+  document.getElementsByTagName('head')[0].appendChild(script);
+</script>
+>
 
       <div id="mining-loader" style="display: none;">
         <div class="spinner"></div>
