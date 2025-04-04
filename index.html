@@ -55,49 +55,7 @@ button:disabled { background-color: gray; cursor: not-allowed; }
     display: block;
     opacity: 1;
 }
-/* Default styles for desktop/larger screens */
 
-@media (max-width: 768px) {
-  /* Apply styles for tablets and smaller devices */
-  body {
-    padding: 10px;
-    font-size: 16px;
-  }
-
-  .container {
-    width: 100%;
-    padding: 10px;
-    box-sizing: border-box;
-  }
-
-  button, input {
-    width: 100%;
-    margin-bottom: 10px;
-    font-size: 16px;
-  }
-
-  #startMining, #stopMining, #dailyRewardButton, #lotteryButton {
-    width: 100%;
-  }
-
-  .task-input, .task-button {
-    display: block;
-    width: 100%;
-  }
-
-  .task-button {
-    margin-top: 5px;
-  }
-
-  .points-display, .coin-balance, .referral-section {
-    text-align: center;
-  }
-
-  /* Make sure everything stacks nicely */
-  .task-section, .referral-section, .lottery-section {
-    margin-bottom: 20px;
-  }
-}
 
 @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   </style>
