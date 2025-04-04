@@ -740,10 +740,10 @@ function disableButtons() {
             // Reward the referrer (e.g., 500 points)
             db.ref("users/" + referrerId + "/points").once("value", (snapshot) => {
                 let currentPoints = snapshot.val() || 0;
-                db.ref("users/" + referrerId + "/points").set(currentPoints + 500);
+                db.ref("users/" + referrerId + "/points").set(currentPoints + 150);
             });
 
-            alert("🎉 You signed up using a referral! Your referrer earned 500 points!");
+            alert("🎉 You signed up using a referral! Your referrer earned 150 points!");
         }       
 // ✅ Check if user has liked the post
 function checkIfLiked() {
