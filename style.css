@@ -27,3 +27,131 @@ button:disabled { background-color: gray; cursor: not-allowed; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 .h1.show { display: block; opacity: 1; }
 @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+/* Mobile First Base Styles (already good) */
+
+/* Small devices (landscape phones, 576px and up) */
+@media (min-width: 576px) {
+  .container {
+    max-width: 540px;
+    padding: 20px;
+  }
+  
+  .nav-item {
+    width: 65px;
+    font-size: 12px;
+  }
+}
+
+/* Medium devices (tablets, 768px and up) */
+@media (min-width: 768px) {
+  .container {
+    max-width: 720px;
+  }
+  
+  .task {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .task p {
+    margin-bottom: 0;
+    margin-right: 10px;
+  }
+}
+
+/* Large devices (desktops, 992px and up) */
+@media (min-width: 992px) {
+  .container {
+    max-width: 960px;
+  }
+  
+  .nav-bar {
+    justify-content: space-around;
+  }
+  
+  .nav-item {
+    width: 80px;
+    font-size: 13px;
+  }
+}
+
+/* Extra large devices (large desktops, 1200px and up) */
+@media (min-width: 1200px) {
+  .container {
+    max-width: 1140px;
+  }
+}
+
+/* Special mobile adjustments */
+@media (max-width: 575.98px) {
+  /* Stack elements vertically on very small screens */
+  .task {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .task button {
+    width: 100%;
+    margin: 5px 0;
+  }
+  
+  /* Adjust the mining buttons */
+  #mineButton, #stopButton {
+    padding: 10px 15px;
+    font-size: 16px;
+  }
+  
+  /* Make the ad container responsive */
+  #atContainer-2b9cdc94d712b5f48eb73f37e47cc203 {
+    width: 100%;
+    height: auto;
+    min-height: 50px;
+  }
+  
+  /* Adjust lottery wheel size */
+  .wheel-container {
+    width: 200px;
+    height: 200px;
+  }
+  
+  .wheel {
+    width: 200px;
+    height: 200px;
+  }
+  
+  /* Make form inputs more touch-friendly */
+  input[type="text"], 
+  input[type="number"],
+  textarea {
+    width: 100%;
+    padding: 10px;
+    font-size: 16px;
+  }
+  
+  /* Adjust button sizes for touch */
+  button {
+    padding: 10px 15px;
+    font-size: 16px;
+    min-width: 100px;
+  }
+  
+  /* Navigation bar adjustments */
+  .nav-bar {
+    flex-wrap: wrap;
+    padding: 5px;
+  }
+  
+  .nav-item {
+    width: 20%;
+    margin: 2px;
+    padding: 5px;
+    font-size: 10px;
+  }
+  
+  .nav-item img {
+    width: 30px;
+    height: 30px;
+  }
+}
+
