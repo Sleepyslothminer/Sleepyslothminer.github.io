@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SleepySloth Miner</title>
+
+  <!-- Firebase v9 Compat Mode -->
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
+  <style>
+
+
+  </style>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+       <h1>🐨 SleepySloth Miner</h1>
+      <button id="loginButton">🔑 Login with Google</button>
+      <p id="user">Not logged in</p>
+       <div class="button-container" onclick="toggleLottery()">
+        <div class="rotating-bg"></div>
+        <div class="button"></div>
+     </div>
+     <div class="hash-rate-display">
+        <h3>⚡ Hash Rate: <span id="hashRateDisplay">0</span> H/s</h3>
+        <p>Total Hashes: <span id="totalHashes">0</span></p> <!-- This is correct -->
+    </div>
+      <h2>💰 Wallet: <span id="walletBalance">0</span> Points</h2>
+      <h3>🏆 Points: <span id="pointsBalance">0</span> Points</h3>
+      <button id="mineButton" disabled>⛏️ Start Mining</button>
+      <button id="stopButton" disabled>🛑 Stop Mining</button>
+      <!-- Adsterra Banner Ad -->
+<div id="atContainer-2b9cdc94d712b5f48eb73f37e47cc203" style="width: 468px; height: 60px; margin: 20px auto; text-align: center;"></div>
+
+<script type="text/javascript">
+  if (typeof atAsyncOptions !== 'object') var atAsyncOptions = [];
+  atAsyncOptions.push({
+      'key': '2b9cdc94d712b5f48eb73f37e47cc203',
+      'format': 'js',
+      'async': true,
+      'container': 'atContainer-2b9cdc94d712b5f48eb73f37e47cc203',
+      'params' : {}
+  });
+  var script = document.createElement('script');
+  script.type = "text/javascript";
+  script.async = true;
+  script.src = 'https' + '://www.highperformanceformat.com/2b9cdc94d712b5f48eb73f37e47cc203/invoke.js';
+  document.getElementsByTagName('head')[0].appendChild(script);
+</script>
+
+      <div id="mining-loader" style="display: none;">
+        <div class="spinner"></div>
+      </div>
+      <p id="status">⛏️ Press Start to begin mining.</p>
+      <p id="countdown"></p> <!-- ✅ Add this line -->
+        <div id="wallet" style="display: none;">
+           <input type="text" id="solanaWallet" placeholder="Enter your Solana wallet address">
+           <button id="saveWalletButton">Save Wallet</button>
+          <br>
+          <input type="number" id="withdrawAmount" placeholder="Enter amount to withdraw">
+         <button id="withdrawButton">Withdraw Coins</button>    
+        </div>
+    <div id="taskSection" style="display: none;">
+    <h2>🎯 Complete Tasks & Earn Rewards</h2>
+
+    <!-- Twitter Follow Task -->
+    <div class="task">
+        <p>🐦 Follow us on Twitter</p>
+        <a href="https://twitter.com/SleepySlothMiner" target="_blank">
+            <button>Follow</button>
+        </a>
+        <input type="text" id="twitterHandle" placeholder="Enter your Twitter handle">
+        <button id="submitTwitter">Submit</button>
+        <p id="twitterStatus"></p>
+    </div>
+
+    <!-- Retweet Task -->
+    <div class="task">
+        <p>🔁 Repost (Retweet) Our Tweet</p>
+        <a href="https://twitter.com/SleepySlothMiner/status/1234567890" target="_blank">
+            <button>Repost</button>
+        </a>
+        <input type="text" id="retweetLink" placeholder="Paste your Retweet link">
+        <button id="submitRetweet">Submit</button>
+        <p id="retweetStatus"></p>
+    </div>
+
+    <!-- Telegram Task -->
+    <div class="task">
+        <p>💬 Join our Telegram</p>
+        <a href="https://t.me/Sleepyslothcoin1" target="_blank">
+            <button>Join Telegram</button>
+        </a>
+        <input type="text" id="telegramUserId" placeholder="Enter your Telegram  ID">
+        <button id="submitTelegram">Submit</button>
+        <p id="telegramStatus"></p>
+    </div>
+</div>
+<div id="referralSection" style="display: none;">
+    <h2>👥 Invite & Earn</h2>
+    <p>Share your referral link and earn rewards when someone signs up!</p>
+    <div class="referral-box">
+      <p id="referralLink" class="referral-link">Generating...</p>
+      <button class="copy-btn" onclick="copyReferral()">📋 Copy Link</button>
+      <p id="referralCount"></p> <!-- Optional: show referral count -->
+    </div>
+  </div>
+       <div id="dailySection"style="display:none">
+        <h2>🎁 Claim Your Daily Reward</h2>
+        <button id="claimBtn">Claim Daily Reward</button>
+        <p id="dailyStatus"></p>
+        </div>
+      </div>
+      <br>
+      
+       <!-- Like Button -->
+        <div class="container"style="margin-top:-38px">
+          <p>❤️ Likes: <span id="likeCount">0</span></p>
+           <button id="likeButton"disabled>👍 Like</button>
+
+        <!-- Suggestion Form -->
+           <h3>💡 Suggest an Improvement</h3>
+          <textarea id="suggestionText" placeholder="Write your suggestion..." rows="3"></textarea>
+          <button  id="submitSuggestion"disabled>📩 Submit</button>
+          <p id="suggestionStatus"></p>
+        </div>
+     </div>
+   <div class="h1" id="lotterySection" style="display: none;">
+    <h2>SleepySloth Lottery</h2>
+    <p>Points: <span id="points">0</span></p>
+    <p>Free Spins Left: <span id="freeSpins">3</span></p> <!-- Shows remaining spins -->
+    <div class="lottery-container">
+        <div class="wheel-container">
+            <div class="pointer"></div>
+            <div class="wheel" id="wheel">
+               <div class="wheel-text">
+                    <span style="top: 10%; left: 50%; transform: translate(-50%, -50%) rotate(0deg);">2</span>
+                    <span style="top: 18%; left: 84%; transform: translate(-50%, -50%) rotate(40deg);">5</span>
+                    <span style="top: 50%; left: 97%; transform: translate(-50%, -50%) rotate(80deg);">50</span>
+                    <span style="top: 84%; left: 84%; transform: translate(-50%, -50%) rotate(120deg);">150</span>
+                    <span style="top: 98%; left: 49%; transform: translate(-50%, -50%) rotate(200deg);">500</span>
+                    <span style="top: 85%; left: 16%; transform: translate(-50%, -50%) rotate(240deg);">650</span>
+                    <span style="top: 50%; left: 1%; transform: translate(-50%, -50%) rotate(280deg);">750</span>
+                    <span style="top: 17%; left: 18%; transform: translate(-50%, -50%) rotate(320deg);">1000</span>
+                    
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+    <button id="spinButton" onclick="spinWheel()">Start Lottery</button>
+	<button id="backHome">🏠 Back to Home</button>
+    <p id="result"></p>
+</div>
+     <div class="nav-bar">
+        <a href="home.html" class="nav-item">
+           <img src="wallet.webp" alt="Home">
+           Wallet
+        </a>
+        <a href="earn.html" class="nav-item">
+            <img src="Earn.webp" alt="Earn"> Earn
+        </a>
+       <a href="referrals.html" class="nav-item">
+           <img src="Referrals.webp" alt="Referrals">
+           Referrals
+       </a>
+       <a href="Daily.html" class="nav-item">
+        <img src="Daily.webp" alt="Daily">
+        Daily
+    </a>
+    <div>
+        
+          
+<script src="script.js"></script>
+ </body>
+</html>
