@@ -30,7 +30,31 @@ let miningWorker;
 
 
 const buttons = ["mineButton", "stopButton", "likeButton", "submitSuggestion", "verifyTwitter", "verifyRetweet", "verifyTelegram"];
+function checkMiningStatus() {
+    if (!userId) return;
 
+    db.ref("users/" + userId).once("value").then(snapshot => {
+        const data = snapshot.val();
+        if (data && data.miningActive && data.miningStartTime) {
+            const now = Date.now();
+            const miningStartTime = data.miningStartTime;
+            const elapsedMinutes = Math.floor((now - miningStartTime) / (1000 * 60));
+
+            if (elapsedMinutes < 1440) { // still within 24 hours
+                document.getElementById("mineButton").disabled = true;
+                document.getElementById("stopButton").disabled = false;
+                document.getElementById("status").innerText = "⏳ Mining active...";
+
+                // Resume countdown and mining
+                startCountdown();
+                startMiningProcess();
+            } else {
+                // Mining session expired
+                stopMining(); // clean up
+            }
+        }
+    });
+}
 auth.onAuthStateChanged((user) => {
     const likeButton = document.getElementById("likeButton");
 
@@ -38,19 +62,22 @@ auth.onAuthStateChanged((user) => {
         userId = user.uid;
         checkIfLiked();
 
-        // ✅ Check if the user was previously mining
         db.ref("users/" + userId).once("value").then((snapshot) => {
             const userData = snapshot.val();
-            if (userData && userData.miningActive && userData.miningStartTime) {
-                const now = Date.now();
-                const miningStartTime = userData.miningStartTime;
-                const minutesMined = Math.floor((now - miningStartTime) / (1000 * 60));
-                const pointsEarned = minutesMined;
+            const now = Date.now();
+
+            if (userData?.miningActive && userData?.miningStartTime) {
+                const miningStart = userData.miningStartTime;
+                const timeElapsed = now - miningStart;
+                const maxMiningDuration = 24 * 60 * 60 * 1000; // 24h in ms
+
+                const effectiveMiningTime = Math.min(timeElapsed, maxMiningDuration);
+                const pointsEarned = Math.floor(effectiveMiningTime / (1000 * 60)); // 1 point/minute
 
                 if (pointsEarned > 0) {
                     const newPoints = (userData.points || 0) + pointsEarned;
 
-                    // Update Firebase
+                    // Reset mining status
                     db.ref("users/" + userId).update({
                         points: newPoints,
                         miningActive: false,
@@ -61,18 +88,21 @@ auth.onAuthStateChanged((user) => {
                     document.getElementById("pointsBalance").innerText = newPoints;
                     document.getElementById("status").innerText = `⛏️ You mined ${pointsEarned} points while away!`;
                     console.log(`💸 Mined while offline: ${pointsEarned} points`);
+                } else {
+                    document.getElementById("status").innerText = `⏳ Mining session is still running...`;
                 }
             }
         });
 
     } else {
         userId = null;
-
         likeButton.disabled = true;
         likeButton.textContent = "👍 Like";
         likeButton.style.opacity = "1";
     }
 });
+
+
 
 
 // ✅ Your likePost and checkIfLiked functions
