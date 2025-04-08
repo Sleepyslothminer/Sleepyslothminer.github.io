@@ -36,16 +36,44 @@ auth.onAuthStateChanged((user) => {
 
     if (user) {
         userId = user.uid;
-        checkIfLiked(); // Call your existing function here
+        checkIfLiked();
+
+        // ✅ Check if the user was previously mining
+        db.ref("users/" + userId).once("value").then((snapshot) => {
+            const userData = snapshot.val();
+            if (userData && userData.miningActive && userData.miningStartTime) {
+                const now = Date.now();
+                const miningStartTime = userData.miningStartTime;
+                const minutesMined = Math.floor((now - miningStartTime) / (1000 * 60));
+                const pointsEarned = minutesMined;
+
+                if (pointsEarned > 0) {
+                    const newPoints = (userData.points || 0) + pointsEarned;
+
+                    // Update Firebase
+                    db.ref("users/" + userId).update({
+                        points: newPoints,
+                        miningActive: false,
+                        miningStartTime: null
+                    });
+
+                    // Update UI
+                    document.getElementById("pointsBalance").innerText = newPoints;
+                    document.getElementById("status").innerText = `⛏️ You mined ${pointsEarned} points while away!`;
+                    console.log(`💸 Mined while offline: ${pointsEarned} points`);
+                }
+            }
+        });
+
     } else {
         userId = null;
 
-        // Reset like button
         likeButton.disabled = true;
         likeButton.textContent = "👍 Like";
         likeButton.style.opacity = "1";
     }
 });
+
 
 // ✅ Your likePost and checkIfLiked functions
 function likePost() {
@@ -215,13 +243,14 @@ function startMining() {
 
         // Save mining session in Firebase
         db.ref("users/" + userId).update({
-            miningStartTime: miningStartTime,
+            miningStartTime: firebase.database.ServerValue.TIMESTAMP,
             miningActive: true
         }).then(() => {
             console.log("✅ Mining session saved in Firebase!");
         }).catch((error) => {
             console.error("❌ Firebase update error:", error);
         });
+        
 
         // Save locally only if logged in
         localStorage.setItem("miningStartTime", miningStartTime);
