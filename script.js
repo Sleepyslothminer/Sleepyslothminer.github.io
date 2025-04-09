@@ -43,7 +43,7 @@ function checkMiningStatus() {
             if (elapsedMinutes < 1440) { // still within 24 hours
                 document.getElementById("mineButton").disabled = true;
                 document.getElementById("stopButton").disabled = false;
-                document.getElementById("status").innerText = "⏳ Mining active...";
+                document.getElementById("status").innerText = "⏳ Mining active...Keep this tab open.";
 
                 // Resume countdown and mining
                 startCountdown();
