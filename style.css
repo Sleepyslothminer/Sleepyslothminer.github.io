@@ -1,95 +1,59 @@
-/* Responsive container */
-.container {
-  max-width: 380px;
-  width: 95%;
-  margin: auto;
-  padding: 15px;
-  background-color: #1f1f1f;
-  border-radius: 10px;
-  box-sizing: border-box;
-}
+body { font-family: Arial, sans-serif; text-align: center; background-color: #121212; color: white; }  
+.container { max-width: 380px; margin: auto; padding: 15px; background-color: #1f1f1f; border-radius: 10px; } 
+button { padding: 8px 12px; background-color: #00c853; color: white; border-radius: 5px; cursor: pointer; } 
+button:disabled { background-color: gray; cursor: not-allowed; } 
+#stopButton { background-color: #d32f2f; } 
+#taskSection { margin-top: 15px; padding: 12px; border-radius: 10px; background-color: #2a2a2a; box-shadow: 0px 0px 8px rgba(255, 255, 255, 0.1); } 
+.task { margin-bottom: 10px; padding: 8px; border-radius: 8px; background: #1f1f1f; } 
+.task p { font-size: 14px; font-weight: bold; margin-bottom: 4px; } 
+.task button { margin: 4px; font-size: 13px; } 
+#submitSuggestion { margin-top: -50px; } 
+.download-btn { display: flex; align-items: center; background: #008CBA; color: white; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: bold; justify-content: center; } 
+.download-btn img { width: 25px; height: 25px; margin-right: 8px; } 
+.nav-bar { display: flex; background-color: #111; padding: 8px; border-radius: 10px; width: auto; justify-content: center; } 
+.nav-item { margin-top: 100px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px; margin: 4px; background-color: #222; border-radius: 10px; text-align: center; width: 55px; color: white; font-size: 11px; font-family: Arial, sans-serif; text-decoration: none; } 
+.nav-item img { width: 45px; height: 45px; margin-bottom: 4px; border-radius: 50%; } 
+.button-container { position: relative; width: 30px; height: 30px;margin-left: 350px;} 
+.rotating-bg { width: 30px; height: 30px; background: url('7395552.png') no-repeat center; background-size: contain; position: absolute; animation: rotate 4s linear infinite; border-radius: 50%; } 
+.button { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 7px; height: 7px; background-color: red; border: 4px solid gold; border-radius: 50%; box-shadow: 0 0 10px rgba(255, 215, 0, 0.8); cursor: pointer; margin-top: -20px;} 
+.lottery-container { text-align: center; margin-top: 20px; position: relative; } 
+.wheel-container { position: relative; width: 250px; height: 250px; margin: auto; }
+.wheel { width: 250px; height: 250px; background: url('7395552.png') no-repeat center center; background-size: cover; border-radius: 50%; position: absolute; transition: transform 4s ease-out; }
+.pointer { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-bottom: 30px solid red; z-index: 10; }
+.wheel-text { position: absolute; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; transform-origin: center; }
+.wheel-text span { position: absolute; font-size: 16px; font-weight: bold; color: white; text-shadow: 2px 2px 4px black; transform-origin: center; }
+.h1 { display: none; opacity: 0; max-height: 0; overflow: hidden; transition: opacity 0.3s ease-in-out, max-height 0.3s ease-in-out; position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 380px; background-color: #1f1f1f; border-radius: 10px; z-index: 999; }
+.spinner { border: 4px solid #f3f3f3; border-top: 4px solid #444; border-radius: 50%; width: 30px; height: 30px; animation: spin 0.8s linear infinite; margin: 10px auto; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.h1.show { display: block; opacity: 1; }
+.mining { max-width: 380px; margin: auto; padding: 15px; background-color: #1f1f1f; border-radius: 10px; }
+.logo-container { position: relative; display: flex; align-items: center; gap: 8px; }
 
-/* Make the ad wrapper responsive */
-#ad-wrapper {
-  width: 100%;
-  max-width: 468px;
-  margin: 20px auto;
-  overflow: hidden;
-}
+.info-button { border: none; border-radius: 50%; padding: 4px 8px; font-weight: bold; cursor: pointer; box-shadow: 0 0 4px rgba(0,0,0,0.2); }
 
-/* Ensure ad container fits within parent */
-#atContainer-2b9cdc94d712b5f48eb73f37e47cc203 {
-  width: 100% !important;
-  height: auto !important;
-  min-height: 60px;
-  margin: 0 auto;
-}
+#info-box { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: #1f1f1f; padding: 20px; border-radius: 10px; z-index: 1000; display: none; max-width: 380px; width: 90%; box-shadow: 0 0 20px rgba(0,0,0,0.8);margin-top: -40px;}
 
-/* Responsive buttons */
-button {
-  padding: 8px 12px;
-  background-color: #00c853;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  margin: 5px 0;
-  max-width: 100%;
-}
+.info-box:not(.hidden) { display: block; }
 
-/* Responsive input fields */
-input[type="text"],
-input[type="number"],
-textarea {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px;
-  margin: 5px 0;
-}
-
-/* Make the navigation bar responsive */
-.nav-bar {
-  display: flex;
-  background-color: #111;
-  padding: 8px;
-  border-radius: 10px;
-  width: 100%;
-  max-width: 380px;
-  justify-content: center;
-  margin: 0 auto;
-  flex-wrap: wrap;
-}
-
-/* Nav items should adapt to available space */
-.nav-item {
-  flex: 1;
-  min-width: 55px;
-  margin: 4px;
-  font-size: 10px;
-}
-
-/* Make images responsive */
-img {
-  max-width: 100%;
-  height: auto;
-}
-
-/* Proper viewport meta tag */
-@media screen and (max-width: 480px) {
-  .button-container {
-    margin-left: auto;
-    margin-right: auto;
-    position: relative;
-    right: auto;
+.hidden { display: none; }
+#loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #1a1a1a;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
   }
   
-  .wheel-container {
-    width: 200px;
-    height: 200px;
+  #logo {
+    width: 120px;
+    animation: spin 2s linear infinite;
   }
   
-  .wheel {
-    width: 200px;
-    height: 200px;
-  }
-}
+@keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
