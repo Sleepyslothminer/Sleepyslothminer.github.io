@@ -55,10 +55,16 @@ button:disabled { background-color: gray; cursor: not-allowed; }
     width: 120px;
     animation: spin 2s linear infinite;
   }
-  @media screen and (max-width: 768px) {
+  @media (max-width: 768px) {
   .ad-container {
-    width: 320px; /* Smaller size for mobile */
-    height: 50px;
+    padding: 8px;
+  }
+
+  .ad-container iframe, 
+  .ad-container script {
+    width: 100% !important;
+    height: auto !important;
   }
 }
+
 @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
