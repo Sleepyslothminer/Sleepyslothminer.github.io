@@ -83,9 +83,9 @@ button:disabled { background-color: gray; cursor: not-allowed; }
   }
 
   .button {
-    width: 5px;
-    height: 5px;
-    margin-top: -29px;
+    width: 7px;
+    height: 7px;
+    margin-top: -28.7px;
     margin-left: -12px;
     border: 3px solid gold;
   }
