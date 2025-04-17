@@ -83,7 +83,7 @@ let points = 0;
 let mining = false;
 let miningInterval;
 let countdownInterval;
-const dailyPoints = 30;
+const dailyPoints = 20;
 let miningWorker;
 
 
@@ -765,46 +765,68 @@ function startMiningProcess() {
   
     // Main mining interval (for points)
     miningInterval = setInterval(() => {
-      logDebug("Mining interval triggered");
-      
-      // Get current points from Firebase
-      db.ref("users/" + userId).once("value").then((snapshot) => {
-        if (!snapshot.exists()) {
-          console.error("❌ User data not found in Firebase");
+        logDebug("Mining interval triggered");
+        
+        if (!userId) {
+          logDebug("No userId found, skipping point update");
           return;
         }
         
-        const userData = snapshot.val();
-        const currentPoints = userData.points || 0;
-        const newPoints = currentPoints + 1;
+        // Use a transaction to safely increment points
+        const userPointsRef = db.ref(`users/${userId}/points`);
         
-        logDebug(`Mining point update: ${currentPoints} → ${newPoints}`);
-        
-        // Update Firebase first
-        return db.ref("users/" + userId).update({
-          points: newPoints,
-          lastUpdate: Date.now(),
-          miningActive: true // Make sure this stays true
-        });
-      }).then(() => {
-        logDebug("✅ Points successfully updated in Firebase");
-        
-        // Update status
-        const statusEl = document.getElementById("status");
-        if (statusEl) {
-          statusEl.innerText = `⛏️ Mined 1 point!`;
+        userPointsRef.transaction((currentPoints) => {
+          // If points is null or undefined, start at 0
+          const points = (currentPoints || 0) + 1;
+          logDebug(`Transaction: incrementing points from ${currentPoints || 0} to ${points}`);
+          return points;
+        }, (error, committed, snapshot) => {
+          if (error) {
+            console.error("❌ Points transaction failed:", error);
+            
+            // Retry after a short delay (5 seconds)
+            setTimeout(() => {
+              logDebug("Retrying failed points transaction...");
+              userPointsRef.transaction(current => (current || 0) + 1);
+            }, 5000);
+            
+            return;
+          }
           
-          // Reset status after 2 seconds
-          setTimeout(() => {
-            if (statusEl && statusEl.innerText === `⛏️ Mined 1 point!`) {
-              statusEl.innerText = `⏳ Mining active...`;
+          if (!committed) {
+            logDebug("⚠️ Transaction not committed (aborted)");
+            return;
+          }
+          
+          const newPoints = snapshot.val();
+          logDebug(`✅ Points successfully updated to ${newPoints}`);
+          
+          // Update the lastUpdate timestamp and ensure mining is active
+          db.ref(`users/${userId}`).update({
+            lastUpdate: firebase.database.ServerValue.TIMESTAMP,
+            miningActive: true
+          }).then(() => {
+            // Update status UI
+            const statusEl = document.getElementById("status");
+            if (statusEl) {
+              statusEl.innerText = `⛏️ Mined 1 point!`;
+              
+              // Reset status after 2 seconds
+              setTimeout(() => {
+                if (statusEl && statusEl.innerText === `⛏️ Mined 1 point!`) {
+                  statusEl.innerText = `⏳ Mining active...`;
+                }
+              }, 2000);
             }
-          }, 2000);
-        }
-      }).catch(error => {
-        console.error("❌ Failed to update points in Firebase:", error);
-      });
-    }, 60000); // Every minute
+            
+            // Also update the points display directly
+            const pointsEl = document.getElementById("pointsBalance");
+            if (pointsEl) {
+              pointsEl.innerText = newPoints;
+            }
+          });
+        });
+      }, 60000); // Every minute
     
     // Start background worker
     const workerStarted = startBackgroundMining();
@@ -1377,7 +1399,7 @@ document.getElementById("claimBtn").addEventListener("click", () => {
     db.ref(`users/${userId}`).once("value").then(snapshot => {
         let currentPoints = snapshot.val()?.points || 0;
         db.ref(`users/${userId}`).update({
-            points: currentPoints + 30, // Add 30 points
+            points: currentPoints + 20, // Add 20 points
             lastClaimed: today
         }).then(() => {
             document.getElementById("pointsBalance").innerText = currentPoints + 20;
