@@ -83,7 +83,7 @@ let points = 0;
 let mining = false;
 let miningInterval;
 let countdownInterval;
-const dailyPoints = 20;
+const dailyPoints = 30;
 let miningWorker;
 
 
@@ -1377,7 +1377,7 @@ document.getElementById("claimBtn").addEventListener("click", () => {
     db.ref(`users/${userId}`).once("value").then(snapshot => {
         let currentPoints = snapshot.val()?.points || 0;
         db.ref(`users/${userId}`).update({
-            points: currentPoints + 20, // Add 20 points
+            points: currentPoints + 30, // Add 30 points
             lastClaimed: today
         }).then(() => {
             document.getElementById("pointsBalance").innerText = currentPoints + 20;
