@@ -91,27 +91,21 @@ const buttons = ["mineButton", "stopButton", "likeButton", "submitSuggestion", "
 // Modified checkMiningStatus function
 function checkMiningStatus() {
     if (!userId) {
-      logDebug("No userId, can't check mining status");
+      console.error("No userId, can't check mining status");
       return;
     }
     
-    logDebug("Checking mining status for user", userId);
+    console.log("⏳ Checking mining status for user", userId);
     
     db.ref("users/" + userId).once("value")
       .then(snapshot => {
         if (!snapshot.exists()) {
-          logDebug("User data not found in Firebase");
+          console.log("User data not found in Firebase");
           return;
         }
         
         const userData = snapshot.val();
-        logDebug("User data from Firebase:", userData);
-        
-        // Clear any existing intervals to avoid duplicates
-        if (miningInterval) clearInterval(miningInterval);
-        if (hashRateInterval) clearInterval(hashRateInterval);
-        if (countdownInterval) clearInterval(countdownInterval);
-        if (hashWorkerInterval) clearInterval(hashWorkerInterval);
+        console.log("User data from Firebase:", userData);
         
         // Check if mining was active
         if (userData.miningActive && userData.miningStartTime) {
@@ -120,9 +114,20 @@ function checkMiningStatus() {
           const miningEndTime = miningStartTime + 24 * 60 * 60 * 1000;
           const timeRemaining = miningEndTime - now;
           
-          logDebug(`Mining was active. Time remaining: ${Math.floor(timeRemaining/1000/60)} minutes`);
+          console.log(`Mining was active. Time remaining: ${Math.floor(timeRemaining/1000/60)} minutes`);
+          console.log(`Current points in Firebase: ${userData.points || 0}`);
           
           if (timeRemaining > 0) {
+            // Clear any existing intervals to avoid duplicates - IMPORTANT
+            if (miningInterval) {
+              console.log("Clearing existing mining interval");
+              clearInterval(miningInterval);
+              miningInterval = null;
+            }
+            if (hashRateInterval) clearInterval(hashRateInterval);
+            if (countdownInterval) clearInterval(countdownInterval);
+            if (hashWorkerInterval) clearInterval(hashWorkerInterval);
+            
             // Update localStorage with current state
             localStorage.setItem("miningStartTime", miningStartTime.toString());
             localStorage.setItem("miningEndTime", miningEndTime.toString());
@@ -133,32 +138,90 @@ function checkMiningStatus() {
             document.getElementById("stopButton").disabled = false;
             document.getElementById("status").innerText = "⏳ Mining active...";
             
-            // IMPORTANT: Must call these functions in this specific order
-            logDebug("Restarting mining processes...");
-            
-            // 1. First start the countdown to update the UI
-            startCountdown();
-            
-            // 2. Then start the main mining process
-            startMiningProcess();
-            
-            // 3. Finally initialize the worker
-            startBackgroundMining();
-            
-            logDebug("✅ Mining processes restarted after page reload");
+            try {
+              // 1. Start countdown to update the UI
+              console.log("Starting countdown...");
+              startCountdown();
+              
+              // 2. Start the CRITICAL mining process for points
+              console.log("Starting mining process for points...");
+              startMiningProcess();
+              
+              // Verify mining interval was created
+              if (!miningInterval) {
+                console.error("❌ Mining interval was not created properly!");
+              } else {
+                console.log("✅ Mining interval successfully created");
+              }
+              
+              // 3. Initialize the worker (less critical for points)
+              console.log("Starting background mining...");
+              startBackgroundMining();
+              
+              console.log("✅ Mining processes restarted after page reload");
+              
+              // 4. Add a verification step
+              setTimeout(() => {
+                verifyMiningIsActive();
+              }, 5000);
+            } catch (error) {
+              console.error("❌ Error starting mining processes:", error);
+              // Try to recover
+              stopMining();
+              setTimeout(() => startMining(), 3000);
+            }
           } else {
-            logDebug("Mining session expired, stopping");
+            console.log("Mining session expired, stopping");
             stopMining();
           }
         } else {
-          logDebug("No active mining session found");
+          console.log("No active mining session found");
         }
       })
       .catch(error => {
         console.error("Error checking mining status:", error);
       });
   }
+
+// Add this verification function
+function verifyMiningIsActive() {
+  console.group("Mining Verification");
+  console.log("Mining Interval exists:", miningInterval ? "YES" : "NO");
+  console.log("hashRateInterval exists:", hashRateInterval ? "YES" : "NO");
+  console.log("countdownInterval exists:", countdownInterval ? "YES" : "NO");
   
+  // Check Firebase for recent points updates
+  if (userId) {
+    db.ref("users/" + userId).once("value")
+      .then(snapshot => {
+        if (snapshot.exists()) {
+          const userData = snapshot.val();
+          console.log("Current points:", userData.points);
+          console.log("Mining active flag:", userData.miningActive);
+          console.log("Last update:", userData.lastUpdate ? new Date(userData.lastUpdate).toLocaleString() : "None");
+          
+          // If last update is more than 2 minutes old, mining might be stalled
+          if (userData.lastUpdate && (Date.now() - userData.lastUpdate > 120000)) {
+            console.warn("⚠️ Mining might be stalled - last update was too long ago");
+            
+            // Force restart the mining interval
+            if (miningInterval) clearInterval(miningInterval);
+            console.log("Restarting mining interval...");
+            
+            // Direct approach to increment points every minute
+            miningInterval = setInterval(() => {
+              console.log("Manual mining tick - incrementing points");
+              db.ref("users/" + userId + "/points").transaction(current => (current || 0) + 1);
+            }, 60000);
+          }
+        }
+        console.groupEnd();
+      });
+  } else {
+    console.log("No userId available for verification");
+    console.groupEnd();
+  }
+}  
   auth.onAuthStateChanged((user) => {
     const likeButton = document.getElementById("likeButton");
 
@@ -764,69 +827,75 @@ function startMiningProcess() {
     if (hashWorkerInterval) clearInterval(hashWorkerInterval);
   
     // Main mining interval (for points)
-    miningInterval = setInterval(() => {
-        logDebug("Mining interval triggered");
-        
-        if (!userId) {
-          logDebug("No userId found, skipping point update");
-          return;
-        }
-        
-        // Use a transaction to safely increment points
-        const userPointsRef = db.ref(`users/${userId}/points`);
-        
-        userPointsRef.transaction((currentPoints) => {
-          // If points is null or undefined, start at 0
-          const points = (currentPoints || 0) + 1;
-          logDebug(`Transaction: incrementing points from ${currentPoints || 0} to ${points}`);
-          return points;
-        }, (error, committed, snapshot) => {
-          if (error) {
+    // Modified miningInterval in startMiningProcess function
+miningInterval = setInterval(() => {
+    console.log("⏱️ Mining interval triggered - attempting to add point");
+    
+    if (!userId) {
+        console.error("❌ No userId available for point update");
+        return;
+    }
+    
+    // Log current points before transaction
+    db.ref(`users/${userId}/points`).once('value')
+        .then(snapshot => {
+            const currentPointsBeforeUpdate = snapshot.val() || 0;
+            console.log(`Current points before update: ${currentPointsBeforeUpdate}`);
+        });
+    
+    // Use a transaction with robust error handling
+    const userPointsRef = db.ref(`users/${userId}/points`);
+    
+    userPointsRef.transaction((currentPoints) => {
+        console.log(`Transaction started with current points: ${currentPoints || 0}`);
+        return (currentPoints || 0) + 1; // Add 1 point
+    }, (error, committed, snapshot) => {
+        if (error) {
             console.error("❌ Points transaction failed:", error);
             
-            // Retry after a short delay (5 seconds)
+            // Add diagnostic info
+            console.log("Transaction state:", {
+                userId: userId,
+                error: error.message,
+                mining: mining,
+                timestamp: Date.now()
+            });
+            
+            // Retry after 5 seconds
             setTimeout(() => {
-              logDebug("Retrying failed points transaction...");
-              userPointsRef.transaction(current => (current || 0) + 1);
+                console.log("🔄 Retrying failed points transaction...");
+                userPointsRef.transaction(current => (current || 0) + 1);
             }, 5000);
             
             return;
-          }
-          
-          if (!committed) {
-            logDebug("⚠️ Transaction not committed (aborted)");
+        }
+        
+        if (!committed) {
+            console.error("⚠️ Transaction not committed (aborted)");
             return;
-          }
-          
-          const newPoints = snapshot.val();
-          logDebug(`✅ Points successfully updated to ${newPoints}`);
-          
-          // Update the lastUpdate timestamp and ensure mining is active
-          db.ref(`users/${userId}`).update({
+        }
+        
+        const newPoints = snapshot.val();
+        console.log(`✅ Points successfully updated from ${newPoints-1} to ${newPoints}`);
+        
+        // Force refresh UI
+        document.getElementById("pointsBalance").innerText = newPoints;
+        document.getElementById("status").innerText = `⛏️ Mined 1 point! Total: ${newPoints}`;
+        
+        // Reset status after 2 seconds
+        setTimeout(() => {
+            if (document.getElementById("status").innerText.includes("Mined 1 point")) {
+                document.getElementById("status").innerText = `⏳ Mining active...`;
+            }
+        }, 2000);
+        
+        // Update Firebase timestamp
+        db.ref(`users/${userId}`).update({
             lastUpdate: firebase.database.ServerValue.TIMESTAMP,
             miningActive: true
-          }).then(() => {
-            // Update status UI
-            const statusEl = document.getElementById("status");
-            if (statusEl) {
-              statusEl.innerText = `⛏️ Mined 1 point!`;
-              
-              // Reset status after 2 seconds
-              setTimeout(() => {
-                if (statusEl && statusEl.innerText === `⛏️ Mined 1 point!`) {
-                  statusEl.innerText = `⏳ Mining active...`;
-                }
-              }, 2000);
-            }
-            
-            // Also update the points display directly
-            const pointsEl = document.getElementById("pointsBalance");
-            if (pointsEl) {
-              pointsEl.innerText = newPoints;
-            }
-          });
         });
-      }, 60000); // Every minute
+    });
+}, 60000); // Every minute
     
     // Start background worker
     const workerStarted = startBackgroundMining();
@@ -1926,5 +1995,25 @@ function updateBackgroundMiningStats(data) {
       });
     }
   }
+  function setupPointsListener() {
+    if (!userId) return;
+    
+    // Remove any existing listener
+    db.ref(`users/${userId}/points`).off();
+    
+    // Add real-time listener
+    db.ref(`users/${userId}/points`).on('value', (snapshot) => {
+        const points = snapshot.val() || 0;
+        console.log(`🔄 Points updated in real-time: ${points}`);
+        
+        // Update UI
+        const pointsEl = document.getElementById("pointsBalance");
+        if (pointsEl) {
+            pointsEl.innerText = points;
+        }
+    });
+    
+    console.log("✅ Points listener established");
+}
 // ✅ Attach Login Button Event
 document.getElementById("loginButton").addEventListener("click", login);
