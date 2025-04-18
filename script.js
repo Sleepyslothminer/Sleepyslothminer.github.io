@@ -22,6 +22,12 @@ if ('serviceWorker' in navigator) {
             
             newWorker.addEventListener('statechange', () => {
               logDebug('Service worker state:', newWorker.state);
+              
+              // When the service worker is activated, check mining state
+              if (newWorker.state === 'activated' && userId) {
+                console.log("Service worker activated - checking mining state");
+                checkMiningStatus();
+              }
             });
           });
           
@@ -30,6 +36,11 @@ if ('serviceWorker' in navigator) {
         })
         .catch(error => {
           console.error('ServiceWorker registration failed: ', error);
+          
+          // If service worker fails, still try to set up mining
+          if (userId) {
+            setTimeout(checkMiningStatus, 1000);
+          }
         });
     });
   }
@@ -85,143 +96,289 @@ let miningInterval;
 let countdownInterval;
 const dailyPoints = 20;
 let miningWorker;
-
+const miningState = {
+    active: false,
+    startTime: 0,
+    endTime: 0,
+    retryCount: 0,
+    maxRetries: 5,
+    intervals: {
+      mining: null,
+      hashRate: null,
+      countdown: null
+    }
+  };
 
 const buttons = ["mineButton", "stopButton", "likeButton", "submitSuggestion", "verifyTwitter", "verifyRetweet", "verifyTelegram"];
 // Modified checkMiningStatus function
 function checkMiningStatus() {
     if (!userId) {
-      console.error("No userId, can't check mining status");
-      return;
+      console.log("⏳ Waiting for auth before checking mining status...");
+      
+      // Setup a retry mechanism with exponential backoff
+      if (miningState.retryCount < miningState.maxRetries) {
+        miningState.retryCount++;
+        const retryDelay = Math.min(2000 * Math.pow(1.5, miningState.retryCount - 1), 10000);
+        setTimeout(checkMiningStatus, retryDelay);
+        return;
+      } else {
+        console.error("❌ Maximum retries reached for mining status check");
+        return;
+      }
     }
     
+    // Reset retry counter once we have userId
+    miningState.retryCount = 0;
     console.log("⏳ Checking mining status for user", userId);
     
+    // First check localStorage for quick UI restoration
+    const localMiningData = getLocalMiningData();
+    
+    // If localStorage has valid mining data, restore UI immediately
+    if (isValidLocalMiningData(localMiningData)) {
+      restoreUIFromLocalData(localMiningData);
+    }
+    
+    // Then verify with Firebase (source of truth)
     db.ref("users/" + userId).once("value")
       .then(snapshot => {
-        if (!snapshot.exists()) {
-          console.log("User data not found in Firebase");
-          return;
+        const userData = snapshot.exists() ? snapshot.val() : null;
+        const firebaseMiningData = extractMiningDataFromFirebase(userData);
+        
+        // Case 1: Firebase has active mining data
+        if (isActiveMining(firebaseMiningData)) {
+          console.log(`Mining active in Firebase. Time remaining: ${Math.floor(firebaseMiningData.timeRemaining/1000/60)} minutes`);
+          restoreMiningFromFirebase(firebaseMiningData);
         }
-        
-        const userData = snapshot.val();
-        console.log("User data from Firebase:", userData);
-        
-        // Check if mining was active
-        if (userData.miningActive && userData.miningStartTime) {
-          const now = Date.now();
-          const miningStartTime = userData.miningStartTime;
-          const miningEndTime = miningStartTime + 24 * 60 * 60 * 1000;
-          const timeRemaining = miningEndTime - now;
-          
-          console.log(`Mining was active. Time remaining: ${Math.floor(timeRemaining/1000/60)} minutes`);
-          console.log(`Current points in Firebase: ${userData.points || 0}`);
-          
-          if (timeRemaining > 0) {
-            // Clear any existing intervals to avoid duplicates - IMPORTANT
-            if (miningInterval) {
-              console.log("Clearing existing mining interval");
-              clearInterval(miningInterval);
-              miningInterval = null;
-            }
-            if (hashRateInterval) clearInterval(hashRateInterval);
-            if (countdownInterval) clearInterval(countdownInterval);
-            if (hashWorkerInterval) clearInterval(hashWorkerInterval);
-            
-            // Update localStorage with current state
-            localStorage.setItem("miningStartTime", miningStartTime.toString());
-            localStorage.setItem("miningEndTime", miningEndTime.toString());
-            localStorage.setItem("miningActive", "true");
-            
-            // Update UI first
-            document.getElementById("mineButton").disabled = true;
-            document.getElementById("stopButton").disabled = false;
-            document.getElementById("status").innerText = "⏳ Mining active...";
-            
-            try {
-              // 1. Start countdown to update the UI
-              console.log("Starting countdown...");
-              startCountdown();
-              
-              // 2. Start the CRITICAL mining process for points
-              console.log("Starting mining process for points...");
-              startMiningProcess();
-              
-              // Verify mining interval was created
-              if (!miningInterval) {
-                console.error("❌ Mining interval was not created properly!");
-              } else {
-                console.log("✅ Mining interval successfully created");
-              }
-              
-              // 3. Initialize the worker (less critical for points)
-              console.log("Starting background mining...");
-              startBackgroundMining();
-              
-              console.log("✅ Mining processes restarted after page reload");
-              
-              // 4. Add a verification step
-              setTimeout(() => {
-                verifyMiningIsActive();
-              }, 5000);
-            } catch (error) {
-              console.error("❌ Error starting mining processes:", error);
-              // Try to recover
-              stopMining();
-              setTimeout(() => startMining(), 3000);
-            }
-          } else {
-            console.log("Mining session expired, stopping");
-            stopMining();
-          }
-        } else {
+        // Case 2: Local storage has data but Firebase doesn't
+        else if (isValidLocalMiningData(localMiningData) && localMiningData.timeRemaining > 0) {
+          console.log("⚠️ Mining state mismatch between localStorage and Firebase - fixing");
+          syncLocalDataToFirebase(localMiningData);
+        } 
+        // Case 3: No active mining in either place
+        else {
           console.log("No active mining session found");
+          cleanupMiningState();
         }
       })
       .catch(error => {
         console.error("Error checking mining status:", error);
+        
+        // If Firebase check fails but localStorage indicates mining, try to recover
+        if (isValidLocalMiningData(localMiningData) && localMiningData.timeRemaining > 0) {
+          console.log("⚠️ Firebase check failed but localStorage shows mining - attempting recovery");
+          recoveryFromLocalData(localMiningData);
+        }
       });
   }
-
+  
+  // Helper functions to make the code more readable
+  function getLocalMiningData() {
+    return {
+      active: localStorage.getItem("miningActive") === "true",
+      startTime: parseInt(localStorage.getItem("miningStartTime") || "0"),
+      endTime: parseInt(localStorage.getItem("miningEndTime") || "0"),
+      timeRemaining: parseInt(localStorage.getItem("miningEndTime") || "0") - Date.now()
+    };
+  }
+  
+  function isValidLocalMiningData(data) {
+    return data.active && data.startTime > 0 && data.endTime > Date.now();
+  }
+  
+  function extractMiningDataFromFirebase(userData) {
+    if (!userData) return { active: false };
+    
+    const now = Date.now();
+    const miningStartTime = userData.miningStartTime || 0;
+    const miningEndTime = miningStartTime + 24 * 60 * 60 * 1000;
+    
+    return {
+      active: userData.miningActive || false,
+      startTime: miningStartTime,
+      endTime: miningEndTime,
+      timeRemaining: miningEndTime - now,
+      points: userData.points || 0
+    };
+  }
+  
+  function isActiveMining(data) {
+    return data.active && data.startTime > 0 && data.timeRemaining > 0;
+  }
+  
+  function restoreUIFromLocalData(data) {
+    document.getElementById("mineButton").disabled = true;
+    document.getElementById("stopButton").disabled = false;
+    document.getElementById("status").innerText = "⏳ Restoring mining session...";
+  }
+  
+  function restoreMiningFromFirebase(data) {
+    // Update miningState object
+    miningState.active = true;
+    miningState.startTime = data.startTime;
+    miningState.endTime = data.endTime;
+    
+    // Clear any existing intervals to avoid duplicates
+    stopAllIntervals();
+    
+    // Update localStorage for quick restoration
+    localStorage.setItem("miningStartTime", data.startTime.toString());
+    localStorage.setItem("miningEndTime", data.endTime.toString());
+    localStorage.setItem("miningActive", "true");
+    
+    // Update UI
+    document.getElementById("mineButton").disabled = true;
+    document.getElementById("stopButton").disabled = false;
+    document.getElementById("status").innerText = "⏳ Mining active...";
+    
+    // Start all required processes
+    startMiningProcess();
+    startBackgroundMining();
+    startCountdown();
+    
+    // Ping service worker and verify mining is active
+    pingServiceWorker();
+    setTimeout(verifyMiningIsActive, 5000);
+  }
+  
+  function syncLocalDataToFirebase(data) {
+    db.ref("users/" + userId).update({
+      miningActive: true,
+      miningStartTime: data.startTime,
+      lastActivity: firebase.database.ServerValue.TIMESTAMP
+    })
+    .then(() => {
+      console.log("✅ Firebase updated with localStorage mining state");
+      setTimeout(checkMiningStatus, 1000);
+    })
+    .catch(error => {
+      console.error("❌ Failed to update Firebase:", error);
+    });
+  }
+  
+  function cleanupMiningState() {
+    localStorage.removeItem("miningActive");
+    localStorage.removeItem("miningStartTime");
+    localStorage.removeItem("miningEndTime");
+    
+    // Update UI
+    document.getElementById("mineButton").disabled = false;
+    document.getElementById("stopButton").disabled = true;
+    document.getElementById("status").innerText = "⛏️ Mining paused. Press Start to begin.";
+  }
+  
+  function recoveryFromLocalData(data) {
+    miningState.active = true;
+    miningState.startTime = data.startTime;
+    miningState.endTime = data.endTime;
+    
+    startMiningProcess();
+    startBackgroundMining();
+    startCountdown();
+    pingServiceWorker();
+  }
+  function pingServiceWorker() {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        action: 'ping',
+        timestamp: Date.now(),
+        userId: userId,
+        miningActive: miningState.active,
+        miningStartTime: miningState.startTime,
+        miningEndTime: miningState.endTime
+      });
+      
+      console.log("✅ Sent ping to service worker");
+    } else {
+      console.warn("⚠️ No service worker controller available");
+    }
+  }
 // Add this verification function
 function verifyMiningIsActive() {
-  console.group("Mining Verification");
-  console.log("Mining Interval exists:", miningInterval ? "YES" : "NO");
-  console.log("hashRateInterval exists:", hashRateInterval ? "YES" : "NO");
-  console.log("countdownInterval exists:", countdownInterval ? "YES" : "NO");
-  
-  // Check Firebase for recent points updates
-  if (userId) {
-    db.ref("users/" + userId).once("value")
-      .then(snapshot => {
-        if (snapshot.exists()) {
-          const userData = snapshot.val();
-          console.log("Current points:", userData.points);
-          console.log("Mining active flag:", userData.miningActive);
-          console.log("Last update:", userData.lastUpdate ? new Date(userData.lastUpdate).toLocaleString() : "None");
-          
-          // If last update is more than 2 minutes old, mining might be stalled
-          if (userData.lastUpdate && (Date.now() - userData.lastUpdate > 120000)) {
-            console.warn("⚠️ Mining might be stalled - last update was too long ago");
+    console.group("Mining Verification");
+    console.log("Mining active:", miningState.active);
+    console.log("Mining Interval exists:", miningState.intervals.mining ? "YES" : "NO");
+    console.log("hashRateInterval exists:", miningState.intervals.hashRate ? "YES" : "NO");
+    console.log("countdownInterval exists:", miningState.intervals.countdown ? "YES" : "NO");
+    
+    // Check for missing intervals and restore them if needed
+    if (miningState.active) {
+      if (!miningState.intervals.mining) {
+        console.warn("⚠️ Missing mining interval - restoring");
+        startMiningProcess();
+      }
+      
+      if (!miningState.intervals.hashRate) {
+        console.warn("⚠️ Missing hashRate interval - restoring");
+        miningState.intervals.hashRate = setInterval(updateHashRateDisplay, 1000);
+      }
+      
+      if (!miningState.intervals.countdown) {
+        console.warn("⚠️ Missing countdown interval - restoring");
+        startCountdown();
+      }
+    }
+    
+    // Check Firebase for recent points updates
+    if (userId) {
+      db.ref("users/" + userId).once("value")
+        .then(snapshot => {
+          if (snapshot.exists()) {
+            const userData = snapshot.val();
+            console.log("Current points:", userData.points);
+            console.log("Mining active flag:", userData.miningActive);
+            console.log("Last update:", userData.lastUpdate ? new Date(userData.lastUpdate).toLocaleString() : "None");
             
-            // Force restart the mining interval
-            if (miningInterval) clearInterval(miningInterval);
-            console.log("Restarting mining interval...");
+            // If mining is active in state but not in Firebase, sync them
+            if (miningState.active && !userData.miningActive) {
+              console.warn("⚠️ Mining state mismatch - fixing Firebase");
+              db.ref("users/" + userId).update({
+                miningActive: true,
+                miningStartTime: miningState.startTime,
+                lastActivity: firebase.database.ServerValue.TIMESTAMP
+              });
+            } 
+            // If mining is inactive in state but active in Firebase, sync them
+            else if (!miningState.active && userData.miningActive) {
+              console.warn("⚠️ Mining state mismatch - updating local state");
+              miningState.active = true;
+              miningState.startTime = userData.miningStartTime;
+              miningState.endTime = userData.miningStartTime + 24 * 60 * 60 * 1000;
+              startMiningProcess();
+            }
             
-            // Direct approach to increment points every minute
-            miningInterval = setInterval(() => {
-              console.log("Manual mining tick - incrementing points");
-              db.ref("users/" + userId + "/points").transaction(current => (current || 0) + 1);
-            }, 60000);
+            // If last update is more than 2 minutes old, mining might be stalled
+            if (userData.lastUpdate && (Date.now() - userData.lastUpdate > 120000) && miningState.active) {
+              console.warn("⚠️ Mining might be stalled - last update was too long ago");
+              
+              // Force update points and timestamp
+              db.ref("users/" + userId).update({
+                lastUpdate: firebase.database.ServerValue.TIMESTAMP
+              });
+              
+              // Restart point incrementation if needed
+              if (!miningState.intervals.mining) {
+                console.log("Restarting mining interval...");
+                startMiningProcess();
+              }
+            }
           }
-        }
-        console.groupEnd();
-      });
-  } else {
-    console.log("No userId available for verification");
-    console.groupEnd();
-  }
-}  
+          console.groupEnd();
+        })
+        .catch(error => {
+          console.error("❌ Error verifying mining state:", error);
+          console.groupEnd();
+        });
+    } else {
+      console.log("No userId available for verification");
+      console.groupEnd();
+    }
+    
+    // Schedule periodic verification
+    if (miningState.active) {
+      setTimeout(verifyMiningIsActive, 60000); // Check every minute
+    }
+  }  
   auth.onAuthStateChanged((user) => {
     const likeButton = document.getElementById("likeButton");
 
@@ -229,8 +386,6 @@ function verifyMiningIsActive() {
         userId = user.uid;
         checkIfLiked();
 
-        // ✅ Show the ad only after successful login
-        showAdAfterLogin();
 
         db.ref("users/" + userId).once("value").then((snapshot) => {
             const userData = snapshot.val();
@@ -711,7 +866,12 @@ function stopMining() {
     console.log("🛑 Stopping mining...");
 
     // Stop all mining processes
+    stopAllIntervals();
     stopMiningProcess();
+    
+    // Update mining state
+    miningState.active = false;
+    mining = false;
     
     // Stop background worker if it exists
     if (miningWorker) {
@@ -723,6 +883,7 @@ function stopMining() {
             console.error("Error stopping worker:", error);
         }
     }
+    
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
         try {
             navigator.serviceWorker.controller.postMessage({
@@ -741,11 +902,6 @@ function stopMining() {
             console.warn("⚠️ Could not stop service worker mining:", err);
         }
     }
-    // Clear all intervals safely
-    const intervals = [miningInterval, hashRateInterval, countdownInterval];
-    intervals.forEach(interval => {
-        if (interval) clearInterval(interval);
-    });
 
     try {
         // Calculate points earned (in minutes for consistency)
@@ -794,12 +950,12 @@ function stopMining() {
                 if (pointsEl) pointsEl.innerText = "0";
                 if (mineBtn) mineBtn.disabled = false;
                 if (stopBtn) stopBtn.disabled = true;
-                if (countdownEl) countdownEl.innerText = "";
+                if (countdownEl) countdownEl.innerText = ""; // Clear countdown display
                 
                 // Clean up local storage
+                localStorage.removeItem("miningActive");
                 localStorage.removeItem("miningStartTime");
                 localStorage.removeItem("miningEndTime");
-                localStorage.removeItem("miningActive");
             })
             .catch((error) => {
                 console.error("❌ Firebase update error:", error);
@@ -822,57 +978,54 @@ function startMiningProcess() {
     logDebug("Starting mining process for user", userId);
     
     // ALWAYS clear any existing intervals to avoid duplicates
-    if (miningInterval) clearInterval(miningInterval);
-    if (hashRateInterval) clearInterval(hashRateInterval);
-    if (hashWorkerInterval) clearInterval(hashWorkerInterval);
+    stopAllIntervals();
   
     // Main mining interval (for points)
-    // Modified miningInterval in startMiningProcess function
-miningInterval = setInterval(() => {
-    console.log("⏱️ Mining interval triggered - attempting to add point");
-    
-    if (!userId) {
+    miningState.intervals.mining = setInterval(() => {
+      console.log("⏱️ Mining interval triggered - attempting to add point");
+      
+      if (!userId) {
         console.error("❌ No userId available for point update");
         return;
-    }
-    
-    // Log current points before transaction
-    db.ref(`users/${userId}/points`).once('value')
+      }
+      
+      // Log current points before transaction
+      db.ref(`users/${userId}/points`).once('value')
         .then(snapshot => {
-            const currentPointsBeforeUpdate = snapshot.val() || 0;
-            console.log(`Current points before update: ${currentPointsBeforeUpdate}`);
+          const currentPointsBeforeUpdate = snapshot.val() || 0;
+          console.log(`Current points before update: ${currentPointsBeforeUpdate}`);
         });
-    
-    // Use a transaction with robust error handling
-    const userPointsRef = db.ref(`users/${userId}/points`);
-    
-    userPointsRef.transaction((currentPoints) => {
+      
+      // Use a transaction with robust error handling
+      const userPointsRef = db.ref(`users/${userId}/points`);
+      
+      userPointsRef.transaction((currentPoints) => {
         console.log(`Transaction started with current points: ${currentPoints || 0}`);
         return (currentPoints || 0) + 1; // Add 1 point
-    }, (error, committed, snapshot) => {
+      }, (error, committed, snapshot) => {
         if (error) {
-            console.error("❌ Points transaction failed:", error);
-            
-            // Add diagnostic info
-            console.log("Transaction state:", {
-                userId: userId,
-                error: error.message,
-                mining: mining,
-                timestamp: Date.now()
-            });
-            
-            // Retry after 5 seconds
-            setTimeout(() => {
-                console.log("🔄 Retrying failed points transaction...");
-                userPointsRef.transaction(current => (current || 0) + 1);
-            }, 5000);
-            
-            return;
+          console.error("❌ Points transaction failed:", error);
+          
+          // Add diagnostic info
+          console.log("Transaction state:", {
+            userId: userId,
+            error: error.message,
+            mining: miningState.active, // Use miningState.active instead of mining
+            timestamp: Date.now()
+          });
+          
+          // Retry after 5 seconds
+          setTimeout(() => {
+            console.log("🔄 Retrying failed points transaction...");
+            userPointsRef.transaction(current => (current || 0) + 1);
+          }, 5000);
+          
+          return;
         }
         
         if (!committed) {
-            console.error("⚠️ Transaction not committed (aborted)");
-            return;
+          console.error("⚠️ Transaction not committed (aborted)");
+          return;
         }
         
         const newPoints = snapshot.val();
@@ -884,19 +1037,19 @@ miningInterval = setInterval(() => {
         
         // Reset status after 2 seconds
         setTimeout(() => {
-            if (document.getElementById("status").innerText.includes("Mined 1 point")) {
-                document.getElementById("status").innerText = `⏳ Mining active...`;
-            }
+          if (document.getElementById("status").innerText.includes("Mined 1 point")) {
+            document.getElementById("status").innerText = `⏳ Mining active...`;
+          }
         }, 2000);
         
         // Update Firebase timestamp
         db.ref(`users/${userId}`).update({
-            lastUpdate: firebase.database.ServerValue.TIMESTAMP,
-            miningActive: true
+          lastUpdate: firebase.database.ServerValue.TIMESTAMP,
+          miningActive: true
         });
-    });
-}, 60000); // Every minute
-    
+      });
+    }, 60000); // Every minute
+      
     // Start background worker
     const workerStarted = startBackgroundMining();
     logDebug("Worker started:", workerStarted);
@@ -904,12 +1057,16 @@ miningInterval = setInterval(() => {
     // Update UI
     document.getElementById("mineButton").disabled = true;
     document.getElementById("stopButton").disabled = false;
-    mining = true;
+    miningState.active = true; // Use miningState.active instead of mining variable
     
     logDebug("Mining process started successfully");
     
     // Update hash rate display every second
-    hashRateInterval = setInterval(updateHashRateDisplay, 1000);
+    miningState.intervals.hashRate = setInterval(updateHashRateDisplay, 1000);
+    
+    // Store references to avoid memory leaks
+    miningInterval = miningState.intervals.mining; // For backward compatibility
+    hashRateInterval = miningState.intervals.hashRate; // For backward compatibility
   }
 function startHashWorker() {
     let lastUpdate = Date.now();
@@ -1002,153 +1159,144 @@ function updateHashRateDisplay() {
     hashCount = 0;
     lastPointUpdate = now;
 }
-
-// Simple hash function (for display purposes only)
-function calculateHash(input) {
-    let hash = 0;
-    for (let i = 0; i < input.length; i++) {
-        hash = ((hash << 5) - hash) + input.charCodeAt(i);
-        hash |= 0;
-    }
-    return hash;
-}
 function startCountdown() {
+    // Always clear existing countdown interval first
+    if (miningState.intervals.countdown) {
+      clearInterval(miningState.intervals.countdown);
+      miningState.intervals.countdown = null;
+    }
+    
+    const countdownEl = document.getElementById("countdown");
+    if (!countdownEl) {
+      console.warn("⚠️ Countdown element not found");
+      return;
+    }
+    
+    // Use miningState object for consistency
+    const endTime = miningState.endTime || parseInt(localStorage.getItem("miningEndTime") || "0");
+    
+    if (!endTime) {
+      console.error("❌ No valid end time for countdown");
+      return;
+    }
+    
+    // Update immediately once
+    updateCountdown();
+    
+    // Then set interval
+    miningState.intervals.countdown = setInterval(updateCountdown, 1000);
+    
+    // Function to update countdown display
     function updateCountdown() {
-        let now = Date.now();
-        let miningEndTime = parseInt(localStorage.getItem("miningEndTime")) || 0;
-        let remainingTime = miningEndTime - now;
-
-        if (remainingTime <= 0) {
-            clearInterval(miningInterval);
-            clearInterval(countdownInterval);
-            stopMining();
-            return;
-        }
-
-        let hours = Math.floor(remainingTime / (1000 * 60 * 60));
-        let minutes = Math.floor((remainingTime % (1000 * 60 * 60)) / (1000 * 60));
-        let seconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
-
-        let countdownEl = document.getElementById("countdown");
-        if (countdownEl) {
-            countdownEl.innerText = `⏳ Time left: ${hours}h ${minutes}m ${seconds}s`;
-        } else {
-            console.error("❌ Element with ID 'countdown' not found!");
-        }
-
-        // **🔥 Fix Delay Issue:** Instead of using `setInterval`, align with actual time
-        let nextUpdate = 1000 - (Date.now() % 1000); // Update at exact second intervals
-        setTimeout(updateCountdown, nextUpdate);
-    }
-
-    updateCountdown(); // ✅ Run immediately
-}
-
-window.onload = function () {
-    console.log("🚀 Window loaded. Checking Firebase auth...");
-
-    if (!auth) {
-        console.error("❌ Firebase auth is not initialized!");
+      const now = Date.now();
+      const timeRemaining = endTime - now;
+      
+      if (timeRemaining <= 0) {
+        clearInterval(miningState.intervals.countdown);
+        miningState.intervals.countdown = null;
+        countdownEl.innerText = "Mining session expired!";
+        
+        // Stop mining if expired
+        stopMining();
         return;
+      }
+      
+      // Calculate hours, minutes, seconds
+      const hours = Math.floor(timeRemaining / (1000 * 60 * 60));
+      const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((timeRemaining % (1000 * 60)) / 1000);
+      
+      // Update display
+      countdownEl.innerText = `⏳ Time left: ${hours}h ${minutes}m ${seconds}s`;
     }
+  }
 
-    auth.onAuthStateChanged((user) => {
-        if (user) {
-            userId = user.uid;
-            console.log(`✅ User logged in: ${user.displayName} (${userId})`);
-
-            enableButtons(); // Enable all buttons
-            checkIfLiked();  // Check if the user liked a post
-             
-               // CRITICAL: Call this after a short delay to ensure DOM is ready
-      setTimeout(() => {
-        logDebug("Checking mining status after login...");
-        checkMiningStatus();
-      }, 1000);
-
-            // ✅ ADD THIS: Real-time points sync for both mining and lottery
-            db.ref("users/" + userId + "/points").on("value", (snapshot) => {
-                const points = snapshot.val() || 0;
-                document.getElementById("pointsBalance").innerText = points;
-                document.getElementById("points").innerText = points; // Lottery section
-                console.log("🔥 Points updated in real-time:", points);
-            });
-
-            let statusEl = document.getElementById("status");
-            if (statusEl) {
-                statusEl.innerText = "✅ Logged in! Press Start to begin mining.";
-            }
-
-            let submitBtn = document.getElementById("submitSuggestion");
-            if (submitBtn) {
-                submitBtn.onclick = submitSuggestion;
-                console.log("✅ Submit button enabled");
-            } else {
-                console.warn("⚠️ Submit button not found!");
-            }
-
-            let likeBtn = document.getElementById("likeButton");
-            if (likeBtn) {
-                likeBtn.onclick = likePost;
-                console.log("✅ Like button enabled");
-            } else {
-                console.warn("⚠️ Like button not found!");
-            }
-
-            let mineBtn = document.getElementById("mineButton");
-            let stopBtn = document.getElementById("stopButton");
-
-            if (mineBtn) {
-                mineBtn.disabled = false;
-                mineBtn.onclick = startMining;
-                console.log("✅ Start Mining button enabled");
-            } else {
-                console.warn("⚠️ Start Mining button not found!");
-            }
-
-            if (stopBtn) {
-                stopBtn.disabled = true; // Keep disabled until mining starts
-                stopBtn.onclick = stopMining;
-                console.log("✅ Stop Mining button attached but disabled");
-            } else {
-                console.warn("⚠️ Stop Mining button not found!");
-            }
-
-            db.ref("users/" + userId).once("value").then((snapshot) => {
-                if (snapshot.exists()) {
-                    let userData = snapshot.val();
-                    let storedStartTime = userData.miningStartTime;
-                    let miningActive = userData.miningActive;
-
-                    if (miningActive && storedStartTime) {
-                        let now = Date.now();
-                        let elapsedTime = now - storedStartTime;
-                        let remainingTime = 24 * 60 * 60 * 1000 - elapsedTime;
-
-                        if (remainingTime > 0) {
-                            localStorage.setItem("miningEndTime", storedStartTime + 24 * 60 * 60 * 1000);
-
-                            let countdownEl = document.getElementById("countdown");
-                            if (countdownEl) {
-                                let hours = Math.floor(remainingTime / (1000 * 60 * 60));
-                                let minutes = Math.floor((remainingTime % (1000 * 60 * 60)) / (1000 * 60));
-                                let seconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
-                                countdownEl.innerText = `⏳ Time left: ${hours}h ${minutes}m ${seconds}s (Press Start to continue)`;
-                            }
-                        } else {
-                            console.log("⛔ Mining session expired. Resetting...");
-                            stopMining();
-                        }
-                    }
-                }
-            });
-        } else {
-            console.log("🚫 User logged out.");
-            userId = null;
-            disableButtons();
+  window.onload = function() {
+    console.log("🚀 Window loaded. Checking Firebase auth...");
+    
+    // Set up service worker message listener first
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', event => {
+        console.log('Message from service worker:', event.data);
+        
+        if (event.data.action === 'reportMiningProgress') {
+          updateBackgroundMiningStats(event.data);
+        } else if (event.data.action === 'pong') {
+          console.log("✅ Service worker is active:", event.data);
         }
-    }); // ✅ Closing bracket for auth.onAuthStateChanged
-}; // ✅ Closing bracket for window.onload✅ Missing closing bracket added here!
+      });
+    }
+    
+    // Set up visibility change handler to refresh mining state when tab becomes visible
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') {
+        console.log("📱 Tab became visible - refreshing mining state");
+        updateMiningUI();
+        
+        // Only check mining status if we have a userId
+        if (userId) {
+          checkMiningStatus();
+        }
+      }
+    });
+    
+    if (!auth) {
+      console.error("❌ Firebase auth is not initialized!");
+      return;
+    }
+    
+    auth.onAuthStateChanged((user) => {
+      if (user) {
+        userId = user.uid;
+        console.log(`✅ User logged in: ${user.displayName} (${userId})`);
+        
+        // Reset retry counter
+        miningState.retryCount = 0;
+        
+        enableButtons(); // Enable all buttons
+        checkIfLiked();  // Check if the user liked a post
+        
+        // Set up real-time points listener
+        setupPointsListener();
+        
+        // CRITICAL: Check mining status with a short delay to ensure DOM is ready
+        setTimeout(() => {
+          logDebug("Checking mining status after login...");
+          checkMiningStatus();
+        }, 1000);
+        
+        // Additional safety check after a longer delay
+        setTimeout(() => {
+          if (miningState.active && !miningState.intervals.mining) {
+            console.warn("⚠️ Mining state inconsistency detected - fixing");
+            startMiningProcess();
+          }
+        }, 5000);
+        
+        // Attach all button handlers
+        attachButtonHandlers();
+        
+        // Set initial status
+        let statusEl = document.getElementById("status");
+        if (statusEl) {
+          statusEl.innerText = "✅ Logged in! Press Start to begin mining.";
+        }
+      } else {
+        console.log("🚫 User logged out.");
+        userId = null;
+        disableButtons();
+        
+        // Clean up all mining state if logged out
+        stopAllIntervals();
+        miningState.active = false;
+        
+        // Clear localStorage
+        localStorage.removeItem("miningActive");
+        localStorage.removeItem("miningStartTime");
+        localStorage.removeItem("miningEndTime");
+      }
+    });
+  }; // ✅ Closing bracket for window.onload✅ Missing closing bracket added here!
 
     // ✅ Toggle Daily Rewards Section
     let dailyToggle = document.getElementById("dailyToggle");
@@ -1820,50 +1968,7 @@ function submitTask(taskType, inputId, statusId, validationFunc) {
             }
         }
         // Hide all sections initially
-    // miner-worker.j
-    function showAdAfterLogin() {
-    const adWrapper = document.getElementById('ad-wrapper');
-    if (!adWrapper) {
-        console.error("Ad wrapper element not found!");
-        return;
-    }
-
-    // Show the ad container
-    adWrapper.style.display = 'block';
-
-    // Load the ad script only if not already loaded
-    if (!window.adScriptLoaded) {
-        if (typeof atAsyncOptions !== 'object') {
-            window.atAsyncOptions = [];
-        }
-        
-        atAsyncOptions.push({
-            'key': '2b9cdc94d712b5f48eb73f37e47cc203',
-            'format': 'js',
-            'async': true,
-            'container': 'atContainer-2b9cdc94d712b5f48eb73f37e47cc203',
-            'params': {}
-        });
-
-        const script = document.createElement('script');
-        script.id = 'adsterra-script';
-        script.type = "text/javascript";
-        script.async = true;
-        script.src = 'https://www.highperformanceformat.com/2b9cdc94d712b5f48eb73f37e47cc203/invoke.js';
-        
-        script.onload = function() {
-            console.log("Ad script loaded successfully");
-            window.adScriptLoaded = true;
-        };
-        
-        script.onerror = function() {
-            console.error("Failed to load ad script");
-            adWrapper.style.display = 'none';
-        };
-
-        document.head.appendChild(script);
-    }
-}      
+    // miner-worker.j   
   window.addEventListener('load', () => {
     setTimeout(() => {
       document.getElementById('loading-screen').style.display = 'none';
@@ -2015,5 +2120,71 @@ function updateBackgroundMiningStats(data) {
     
     console.log("✅ Points listener established");
 }
+function attachButtonHandlers() {
+    // Only attach handlers if elements exist and we haven't attached them already
+    
+    let submitBtn = document.getElementById("submitSuggestion");
+    if (submitBtn && !submitBtn.hasListeners) {
+      submitBtn.onclick = submitSuggestion;
+      submitBtn.hasListeners = true;
+      console.log("✅ Submit button enabled");
+    }
+    
+    let likeBtn = document.getElementById("likeButton");
+    if (likeBtn && !likeBtn.hasListeners) {
+      likeBtn.onclick = likePost;
+      likeBtn.hasListeners = true;
+      console.log("✅ Like button enabled");
+    }
+    
+    let mineBtn = document.getElementById("mineButton");
+    let stopBtn = document.getElementById("stopButton");
+    
+    if (mineBtn && !mineBtn.hasListeners) {
+      mineBtn.disabled = false;
+      mineBtn.onclick = startMining;
+      mineBtn.hasListeners = true;
+      console.log("✅ Start Mining button enabled");
+    }
+    
+    if (stopBtn && !stopBtn.hasListeners) {
+      stopBtn.onclick = stopMining;
+      stopBtn.hasListeners = true;
+      console.log("✅ Stop Mining button attached");
+    }
+  }
+  function stopAllIntervals() {
+    // Clear all mining-related intervals
+    if (miningState.intervals.mining) {
+      clearInterval(miningState.intervals.mining);
+      miningState.intervals.mining = null;
+    }
+    if (miningState.intervals.hashRate) {
+      clearInterval(miningState.intervals.hashRate);
+      miningState.intervals.hashRate = null;
+    }
+    if (miningState.intervals.countdown) {
+      clearInterval(miningState.intervals.countdown);
+      miningState.intervals.countdown = null;
+    }
+    
+    // Clear legacy intervals
+    if (miningInterval) {
+      clearInterval(miningInterval);
+      miningInterval = null;
+    }
+    if (hashRateInterval) {
+      clearInterval(hashRateInterval);
+      hashRateInterval = null;
+    }
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
+    if (hashWorkerInterval) {
+      clearInterval(hashWorkerInterval);
+      hashWorkerInterval = null;
+    }
+  }
 // ✅ Attach Login Button Event
 document.getElementById("loginButton").addEventListener("click", login);
