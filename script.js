@@ -432,59 +432,52 @@ function verifyMiningIsActive() {
 });
 
 // ✅ Your likePost and checkIfLiked functions
+let isProcessing = false;
 
-// Modify your like function
 function likePost() {
-    // Get the current user directly from Firebase
-    const currentUser = firebase.auth().currentUser;
-    
-    if (!currentUser) {
+    if (!userId || isProcessing) {
         alert("⚠️ Please log in first!");
         return;
     }
     
-    // Use the UID directly from the current user
-    const uid = currentUser.uid;
+    isProcessing = true;
     
-    // Prevent multiple clicks
-    const likeButton = document.getElementById("likeButton");
-    if (likeButton.disabled) {
-        return;
-    }
-    
-    likeButton.disabled = true;
-    
-    db.ref("userLikes").child(uid).once("value").then((snapshot) => {
+    db.ref("userLikes").child(userId).once("value").then((snapshot) => {
         if (snapshot.exists()) {
             alert("You already liked this post!");
-            likeButton.disabled = false; // Re-enable if already liked
         } else {
-            db.ref("userLikes").child(uid).set(true)
+            db.ref("userLikes").child(userId).set(true)
             .then(() => {
                 return db.ref("likes").transaction((likes) => (likes || 0) + 1);
             })
             .then(() => {
+                const likeButton = document.getElementById("likeButton");
+                likeButton.disabled = true;
                 likeButton.textContent = "👍 Liked!";
                 likeButton.style.opacity = "0.7";
-                // Keep button disabled as user has liked
             });
         }
+        isProcessing = false;
     }).catch(error => {
+        isProcessing = false;
         console.error("Error liking post:", error);
-        likeButton.disabled = false; // Re-enable on error
     });
 }
 
 function checkIfLiked() {
     if (!userId) return;
-    
+
+    const likeButton = document.getElementById("likeButton");
+
     db.ref("userLikes").child(userId).once("value").then((snapshot) => {
-        if (snapshot.exists()) {
-            const likeButton = document.getElementById("likeButton");
-            likeButton.disabled = true;
-            likeButton.textContent = "👍 Liked!";
-            likeButton.style.opacity = "0.7";
-        }
+        const liked = snapshot.exists();
+        likeButton.disabled = liked;
+        likeButton.textContent = liked ? "👍 Liked!" : "👍 Like";
+        likeButton.style.opacity = liked ? "0.7" : "1";
+    });
+
+    db.ref("likes").on("value", (snapshot) => {
+        document.getElementById("likeCount").innerText = snapshot.val() || 0;
     });
 }
 document.getElementById("likeButton").addEventListener("click", likePost);
