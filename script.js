@@ -873,7 +873,17 @@ function stopMining() {
     miningState.active = false;
     mining = false;
     
-    // Stop background worker if it exists
+  // Reset hash counters and history
+  hashCount = 0;
+  currentHashRate = 0;
+  hashRateHistory = [];
+  totalHashes = 0; // Add this line to reset total hashes
+  
+  // Update hash UI elements
+  const hashRateEl = document.getElementById("hashRateDisplay");
+  const totalHashesEl = document.getElementById("totalHashes");
+  if (hashRateEl) hashRateEl.innerText = "0";
+  if (totalHashesEl) totalHashesEl.innerText = "0"; // Add this line to update UI
     if (miningWorker) {
         try {
             miningWorker.postMessage({ action: "stop" });
