@@ -2198,3 +2198,122 @@ function attachButtonHandlers() {
   }
 // ✅ Attach Login Button Event
 document.getElementById("loginButton").addEventListener("click", login);
+// Add this code at the end of your JavaScript file or in your main script area
+// This is a standalone fix that should override any problematic behavior
+
+(function() {
+    // Store the original end time when mining starts
+    let originalMiningEndTime = 0;
+    
+    // Override the startMining function to capture the original end time
+    const originalStartMining = window.startMining;
+    window.startMining = function() {
+        // Call the original function
+        originalStartMining.apply(this, arguments);
+        
+        // Store the original end time
+        const startTime = Date.now();
+        originalMiningEndTime = startTime + 24 * 60 * 60 * 1000; // 24 hours
+        console.log("📌 Original mining end time set:", new Date(originalMiningEndTime).toLocaleString());
+        
+        // Store in a more persistent location
+        sessionStorage.setItem('originalMiningEndTime', originalMiningEndTime.toString());
+    };
+    
+    // Override the startCountdown function to always use the original end time
+    window.startCountdown = function() {
+        // Try to get the original end time from various sources
+        const storedEndTime = sessionStorage.getItem('originalMiningEndTime');
+        const endTimeFromStorage = parseInt(storedEndTime || localStorage.getItem("miningEndTime") || "0");
+        
+        // Use the most reliable end time source
+        originalMiningEndTime = originalMiningEndTime || endTimeFromStorage;
+        
+        console.log("⏲️ Countdown using end time:", new Date(originalMiningEndTime).toLocaleString());
+        
+        // Always clear existing countdown interval first
+        if (window.countdownInterval) {
+            clearInterval(window.countdownInterval);
+        }
+        if (miningState && miningState.intervals && miningState.intervals.countdown) {
+            clearInterval(miningState.intervals.countdown);
+            miningState.intervals.countdown = null;
+        }
+        
+        const countdownEl = document.getElementById("countdown");
+        if (!countdownEl) return;
+        
+        // Update immediately once
+        updateCountdown();
+        
+        // Then set interval
+        window.countdownInterval = setInterval(updateCountdown, 1000);
+        if (miningState && miningState.intervals) {
+            miningState.intervals.countdown = window.countdownInterval;
+        }
+        
+        // Function to update countdown display
+        function updateCountdown() {
+            const now = Date.now();
+            const timeRemaining = originalMiningEndTime - now;
+            
+            if (timeRemaining <= 0) {
+                clearInterval(window.countdownInterval);
+                if (miningState && miningState.intervals) {
+                    miningState.intervals.countdown = null;
+                }
+                countdownEl.innerText = "Mining session expired!";
+                
+                // Stop mining if expired
+                if (typeof window.stopMining === 'function') {
+                    window.stopMining();
+                }
+                return;
+            }
+            
+            // Calculate hours, minutes, seconds
+            const hours = Math.floor(timeRemaining / (1000 * 60 * 60));
+            const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((timeRemaining % (1000 * 60)) / 1000);
+            
+            // Update display
+            countdownEl.innerText = `⏳ Time left: ${hours}h ${minutes}m ${seconds}s`;
+        }
+    };
+    
+    // Listen for visibility changes to ensure timer continues correctly
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            console.log("📱 Tab visible - checking timer consistency");
+            
+            // Restore original end time if it was lost
+            const storedEndTime = sessionStorage.getItem('originalMiningEndTime');
+            if (storedEndTime) {
+                originalMiningEndTime = parseInt(storedEndTime);
+                console.log("🔄 Restored original end time:", new Date(originalMiningEndTime).toLocaleString());
+            }
+            
+            // Check if we need to restart the countdown
+            const countdownEl = document.getElementById("countdown");
+            if (countdownEl && originalMiningEndTime > Date.now() && 
+                (countdownEl.innerText.includes("Time left") || countdownEl.innerText === "")) {
+                console.log("🔄 Restarting countdown with preserved end time");
+                window.startCountdown();
+            }
+        }
+    });
+    
+    // Override stopMining to also clear our original end time
+    const originalStopMining = window.stopMining;
+    window.stopMining = function() {
+        // Call the original function
+        originalStopMining.apply(this, arguments);
+        
+        // Clear our saved end time
+        originalMiningEndTime = 0;
+        sessionStorage.removeItem('originalMiningEndTime');
+        console.log("🛑 Mining stopped, cleared end time");
+    };
+    
+    console.log("✅ Mining timer fix applied");
+})();
