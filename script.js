@@ -432,24 +432,35 @@ function verifyMiningIsActive() {
 });
 
 // ✅ Your likePost and checkIfLiked functions
+let isProcessing = false;
+
 function likePost() {
-    if (!userId) {
+    if (!userId || isProcessing) {
         alert("⚠️ Please log in first!");
         return;
     }
-
+    
+    isProcessing = true;
+    
     db.ref("userLikes").child(userId).once("value").then((snapshot) => {
         if (snapshot.exists()) {
             alert("You already liked this post!");
         } else {
-            db.ref("userLikes").child(userId).set(true);
-            db.ref("likes").transaction((likes) => (likes || 0) + 1);
-
-            const likeButton = document.getElementById("likeButton");
-            likeButton.disabled = true;
-            likeButton.textContent = "👍 Liked!";
-            likeButton.style.opacity = "0.7";
+            db.ref("userLikes").child(userId).set(true)
+            .then(() => {
+                return db.ref("likes").transaction((likes) => (likes || 0) + 1);
+            })
+            .then(() => {
+                const likeButton = document.getElementById("likeButton");
+                likeButton.disabled = true;
+                likeButton.textContent = "👍 Liked!";
+                likeButton.style.opacity = "0.7";
+            });
         }
+        isProcessing = false;
+    }).catch(error => {
+        isProcessing = false;
+        console.error("Error liking post:", error);
     });
 }
 
